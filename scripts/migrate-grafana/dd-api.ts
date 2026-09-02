@@ -20,11 +20,21 @@ export class DdApiError extends Error {
 }
 
 export async function dd<T>(method: string, path: string, body?: unknown, attempt = 1): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers: { ...authHeaders(), "Content-Type": "application/json", Accept: "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, {
+      method,
+      headers: { ...authHeaders(), "Content-Type": "application/json", Accept: "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000), // a flapping link must not hang a wave for the TCP timeout
+    });
+  } catch (e) {
+    // network error / timeout: retry with backoff. Creating a dashboard is the one non-idempotent call (a lost
+    // response would leave an untracked duplicate), so that one surfaces the error and is retried by the next wave.
+    if (attempt > 5 || (method === "POST" && path === "/v1/dashboard")) throw e;
+    await new Promise((r) => setTimeout(r, 3000 * attempt));
+    return dd<T>(method, path, body, attempt + 1);
+  }
   if (res.status === 429 || res.status >= 500) {
     if (attempt > 5) throw new DdApiError(res.status, await res.text(), path);
     const reset = Number(res.headers.get("x-ratelimit-reset") ?? 0);
