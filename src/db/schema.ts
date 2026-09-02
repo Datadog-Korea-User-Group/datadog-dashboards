@@ -115,12 +115,39 @@ export const ratings = pgTable("ratings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.dashboardId, t.userId] })]);
 
+export const comments = pgTable("comments", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  dashboardId: integer("dashboard_id").notNull().references(() => dashboards.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Soft delete: the row stays so a thread keeps its shape; listings filter on null.
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+}, (t) => [index("comments_dashboard_created_idx").on(t.dashboardId, t.createdAt)]);
+
+export const REACTION_EMOJIS = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F680}", "\u{1F440}", "\u{1F389}", "\u{1F615}"] as const;
+export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
+
+export const reactions = pgTable("reactions", {
+  dashboardId: integer("dashboard_id").notNull().references(() => dashboards.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  emoji: text("emoji").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One row per person per emoji: the key is the toggle constraint, no app-side check.
+  primaryKey({ columns: [t.dashboardId, t.userId, t.emoji] }),
+  index("reactions_dashboard_idx").on(t.dashboardId),
+]);
+
 // ---------- Relations ----------
 export const usersRelations = relations(users, ({ many }) => ({ dashboards: many(dashboards) }));
 export const dashboardsRelations = relations(dashboards, ({ one, many }) => ({
   author: one(users, { fields: [dashboards.authorId], references: [users.id] }),
   revisions: many(dashboardRevisions),
   ratings: many(ratings),
+  comments: many(comments),
+  reactions: many(reactions),
 }));
 export const dashboardRevisionsRelations = relations(dashboardRevisions, ({ one }) => ({
   dashboard: one(dashboards, { fields: [dashboardRevisions.dashboardId], references: [dashboards.id] }),
@@ -129,3 +156,4 @@ export const dashboardRevisionsRelations = relations(dashboardRevisions, ({ one 
 export type Dashboard = typeof dashboards.$inferSelect;
 export type DashboardRevision = typeof dashboardRevisions.$inferSelect;
 export type User = typeof users.$inferSelect;
+export type Comment = typeof comments.$inferSelect;

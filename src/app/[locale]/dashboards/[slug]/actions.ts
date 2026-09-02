@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { DASHBOARDS_TAG } from "@/db/queries";
-import { dashboards, ratings } from "@/db/schema";
+import { DASHBOARDS_TAG, countRecentComments } from "@/db/queries";
+import { REACTION_EMOJIS, comments, dashboards, ratings, reactions } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 
 async function requireAdmin() {
@@ -57,3 +57,57 @@ export async function deleteDashboard(formData: FormData) {
   redirectLocalized("/dashboards", locale);
 }
 
+
+/** `error` is a key under `comments.errors` in messages/*.json. */
+export type CommentState = { error: string | null };
+
+const COMMENTS_PER_HOUR = 10;
+const MAX_COMMENT_CHARS = 4000;
+
+export async function addComment(_prev: CommentState, formData: FormData): Promise<CommentState> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "signIn" };
+
+  const body = String(formData.get("body") ?? "").trim();
+  if (body.length < 1 || body.length > MAX_COMMENT_CHARS) return { error: "length" };
+  if ((await countRecentComments(session.user.id)) >= COMMENTS_PER_HOUR) return { error: "rateLimit" };
+
+  await db.insert(comments).values({
+    dashboardId: Number(formData.get("dashboardId")),
+    userId: session.user.id,
+    body,
+  });
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
+export async function deleteComment(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const id = Number(formData.get("commentId"));
+  const [found] = await db.select({ userId: comments.userId }).from(comments).where(eq(comments.id, id)).limit(1);
+  if (!found) return;
+  if (found.userId !== session.user.id && session.user.role !== "admin") throw new Error("Forbidden");
+
+  await db.update(comments).set({ deletedAt: new Date() }).where(eq(comments.id, id));
+  revalidatePath("/", "layout");
+}
+
+export async function toggleReaction(dashboardId: number, emoji: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  if (!(REACTION_EMOJIS as readonly string[]).includes(emoji)) throw new Error("Unknown reaction");
+
+  const where = and(
+    eq(reactions.dashboardId, dashboardId),
+    eq(reactions.userId, session.user.id),
+    eq(reactions.emoji, emoji),
+  )!;
+  const [mine] = await db.select({ emoji: reactions.emoji }).from(reactions).where(where).limit(1);
+
+  if (mine) await db.delete(reactions).where(where);
+  else await db.insert(reactions).values({ dashboardId, userId: session.user.id, emoji }).onConflictDoNothing();
+
+  revalidatePath("/", "layout");
+}

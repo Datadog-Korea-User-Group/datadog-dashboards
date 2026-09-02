@@ -117,6 +117,22 @@
     "builtBy": "Built by Datadog Korea User Group"
   },
   "comments": {
-    "title": "Comments"
+    "title": "Comments",
+    "count": "{count} comments",
+    "placeholder": "Share how you use this dashboard. Markdown is supported.",
+    "markdownHint": "Markdown supported. Links open in a new tab.",
+    "submit": "Post comment",
+    "signIn": "Sign in with GitHub to comment",
+    "delete": "Delete",
+    "empty": "No comments yet.",
+    "errors": {
+      "length": "A comment must be 1 to 4000 characters.",
+      "rateLimit": "Too many comments in the last hour.",
+      "signIn": "Sign in to comment."
+    }
+  },
+  "reactions": {
+    "title": "Reactions",
+    "signIn": "Sign in to react"
   }
 }

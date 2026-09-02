@@ -15,6 +15,13 @@
       "when": 1788314563631,
       "tag": "0001_true_colonel_america",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788323423090,
+      "tag": "0002_dark_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

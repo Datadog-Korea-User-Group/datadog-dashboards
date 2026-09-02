@@ -117,6 +117,22 @@
     "builtBy": "Datadog Korea User Group이 만들었습니다"
   },
   "comments": {
-    "title": "댓글"
+    "title": "댓글",
+    "count": "댓글 {count}개",
+    "placeholder": "이 대시보드를 어떻게 쓰는지 알려주세요. 마크다운을 쓸 수 있습니다.",
+    "markdownHint": "마크다운을 지원합니다. 링크는 새 탭에서 열립니다.",
+    "submit": "댓글 등록",
+    "signIn": "GitHub로 로그인하고 댓글 남기기",
+    "delete": "삭제",
+    "empty": "아직 댓글이 없습니다.",
+    "errors": {
+      "length": "댓글은 1~4000자여야 합니다.",
+      "rateLimit": "최근 1시간 댓글이 너무 많습니다.",
+      "signIn": "댓글을 남기려면 로그인하세요."
+    }
+  },
+  "reactions": {
+    "title": "반응",
+    "signIn": "반응하려면 로그인하세요"
   }
 }

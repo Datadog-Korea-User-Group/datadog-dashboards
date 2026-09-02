@@ -1,8 +1,8 @@
-import { and, arrayContains, count, desc, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, arrayContains, asc, count, desc, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { PAGE_SIZE, type QualityBand, type Sort } from "@/lib/list-params";
 import { db } from "./index";
-import { dashboardRevisions, dashboards, ratings, users, type ConversionSummary } from "./schema";
+import { comments, dashboardRevisions, dashboards, ratings, reactions, users, REACTION_EMOJIS, type ConversionSummary } from "./schema";
 
 // Re-exported so server callers keep importing from one place; the definitions
 // live in lib/list-params so client components can use them too.
@@ -224,6 +224,55 @@ export async function countRecentUploads(userId: string): Promise<number> {
     .from(dashboards)
     .where(and(eq(dashboards.authorId, userId), gte(dashboards.createdAt, new Date(Date.now() - 3600_000)))!);
   return row?.n ?? 0;
+}
+
+/** Non-deleted comments, oldest first, with their author. */
+export async function listComments(dashboardId: number) {
+  return db
+    .select({
+      id: comments.id,
+      body: comments.body,
+      createdAt: comments.createdAt,
+      userId: comments.userId,
+      username: users.username,
+      name: users.name,
+      image: users.image,
+    })
+    .from(comments)
+    .leftJoin(users, eq(comments.userId, users.id))
+    .where(and(eq(comments.dashboardId, dashboardId), isNull(comments.deletedAt))!)
+    .orderBy(asc(comments.createdAt), asc(comments.id));
+}
+
+/** Comments posted by a user in the last hour — the rate limit. */
+export async function countRecentComments(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(comments)
+    .where(and(eq(comments.userId, userId), gte(comments.createdAt, new Date(Date.now() - 3600_000)))!);
+  return row?.n ?? 0;
+}
+
+export type ReactionTally = { emoji: string; count: number; mine: boolean };
+
+/** All six emoji in a fixed order, zero-filled, with whether this viewer picked each. */
+export async function listReactions(dashboardId: number, userId?: string): Promise<ReactionTally[]> {
+  const rows = await db
+    .select({
+      emoji: reactions.emoji,
+      count: count(),
+      mine: sql<boolean>`coalesce(bool_or(${reactions.userId} = ${userId ?? null}), false)`,
+    })
+    .from(reactions)
+    .where(eq(reactions.dashboardId, dashboardId))
+    .groupBy(reactions.emoji);
+
+  const found = new Map(rows.map((r) => [r.emoji, r]));
+  return REACTION_EMOJIS.map((emoji) => ({
+    emoji,
+    count: found.get(emoji)?.count ?? 0,
+    mine: found.get(emoji)?.mine ?? false,
+  }));
 }
 
 export type IntegrationCount = { name: string; count: number };

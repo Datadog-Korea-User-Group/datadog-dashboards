@@ -3,22 +3,23 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
-import { auth } from "@/auth";
+import { auth, signIn } from "@/auth";
 import { Link } from "@/i18n/navigation";
-import { getDashboardBySlug, getSketchWidgets, getUserRating, listRevisions } from "@/db/queries";
+import { getDashboardBySlug, getSketchWidgets, getUserRating, listComments, listReactions, listRevisions } from "@/db/queries";
 import type { ConversionSummary } from "@/db/schema";
 import { CopyButton } from "@/components/CopyButton";
 import { DownloadButton } from "@/components/DownloadButton";
-import { Giscus } from "@/components/Giscus";
 import { JsonViewer } from "@/components/JsonViewer";
 import { LayoutSketch } from "@/components/LayoutSketch";
 import { LocalTime } from "@/components/LocalTime";
 import { QualityBadge } from "@/components/QualityBadge";
+import { Reactions } from "@/components/Reactions";
 import { RatingStars } from "@/components/RatingStars";
 import { ViewPing } from "@/components/ViewPing";
 import { Markdown } from "@/lib/markdown";
 import { absolute, languageAlternates } from "@/lib/site-url";
-import { deleteDashboard, rateDashboard, setPublished } from "./actions";
+import { CommentForm } from "./CommentForm";
+import { deleteComment, deleteDashboard, rateDashboard, setPublished, toggleReaction } from "./actions";
 
 function metaDescription(d: { description: string; title: string; sourceId: number | null; sourceOrgName: string | null }) {
   if (d.description) return d.description;
@@ -144,9 +145,12 @@ export default async function DashboardDetailPage({
 
   const t = await getTranslations("detail");
   const tc = await getTranslations("comments");
-  const [revisions, myRating] = await Promise.all([
+  const tr = await getTranslations("reactions");
+  const [revisions, myRating, thread, reactionTally] = await Promise.all([
     listRevisions(d.id),
     session?.user?.id ? getUserRating(d.id, session.user.id) : Promise.resolve(null),
+    listComments(d.id),
+    listReactions(d.id, session?.user?.id),
   ]);
 
   // The JSON is fetched by the viewer on demand, so it never reaches the HTML.
@@ -175,14 +179,6 @@ export default async function DashboardDetailPage({
     },
   };
   const downloadHref = `/api/dashboards/${encodeURIComponent(d.slug)}/download`;
-  const giscus = process.env.GISCUS_REPO_ID
-    ? {
-        repo: process.env.GISCUS_REPO ?? "",
-        repoId: process.env.GISCUS_REPO_ID,
-        category: process.env.GISCUS_CATEGORY ?? "",
-        categoryId: process.env.GISCUS_CATEGORY_ID ?? "",
-      }
-    : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -196,6 +192,7 @@ export default async function DashboardDetailPage({
             <QualityBadge score={d.qualityScore} showScore />
             <span className="pill pill-neutral">{t("downloads", { count: d.downloads.toLocaleString() })}</span>
             <span className="pill pill-neutral">{t("views", { count: d.views.toLocaleString() })}</span>
+            <span className="pill pill-neutral">{tc("count", { count: thread.length })}</span>
             {latest ? <span className="pill pill-neutral">{t("revision", { n: latest.revision })}</span> : null}
             <span className="muted">{t.rich("created", { d: () => <LocalTime value={d.createdAt} mode="date" /> })}</span>
             {author?.username ? (
@@ -221,6 +218,18 @@ export default async function DashboardDetailPage({
           </details>
         </div>
       </header>
+
+      <section className="flex items-center gap-3 flex-wrap">
+        <h2 className="text-xs font-bold muted">{tr("title")}</h2>
+        <Reactions
+          dashboardId={d.id}
+          items={reactionTally}
+          signedIn={!!session?.user?.id}
+          signInHint={tr("signIn")}
+          signIn={async () => { "use server"; await signIn("github"); }}
+          toggle={toggleReaction}
+        />
+      </section>
 
       {d.description ? <p className="text-base">{d.description}</p> : null}
 
@@ -317,12 +326,50 @@ export default async function DashboardDetailPage({
         </div>
       </section>
 
-      {giscus ? (
-        <section className="card p-4 flex flex-col gap-3">
-          <h2 className="font-bold">{tc("title")}</h2>
-          <Giscus {...giscus} term={d.slug} />
-        </section>
-      ) : null}
+      <section className="card p-4 flex flex-col gap-4">
+        <h2 className="font-bold">{tc("count", { count: thread.length })}</h2>
+
+        {thread.length === 0 ? (
+          <p className="text-xs muted">{tc("empty")}</p>
+        ) : (
+          <ul className="flex flex-col gap-4">
+            {thread.map((c) => (
+              <li key={c.id} className="flex gap-3">
+                {c.image ? (
+                  <Image src={c.image} alt="" width={32} height={32} className="rounded-full shrink-0" unoptimized />
+                ) : (
+                  <span className="w-8 h-8 rounded-full bg-bg-tertiary shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    {c.username ? (
+                      <Link href={`/users/${c.username}`} className="font-semibold hover:text-primary">{c.username}</Link>
+                    ) : (
+                      <span className="font-semibold">{c.name ?? "\u2014"}</span>
+                    )}
+                    <LocalTime value={c.createdAt} className="muted" />
+                    {c.userId === session?.user?.id || isAdmin ? (
+                      <form action={deleteComment}>
+                        <input type="hidden" name="commentId" value={c.id} />
+                        <button type="submit" className="link text-xs">{tc("delete")}</button>
+                      </form>
+                    ) : null}
+                  </div>
+                  <Markdown>{c.body}</Markdown>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {session?.user?.id ? (
+          <CommentForm dashboardId={d.id} />
+        ) : (
+          <form action={async () => { "use server"; await signIn("github"); }}>
+            <button type="submit" className="btn btn-secondary btn-sm">{tc("signIn")}</button>
+          </form>
+        )}
+      </section>
     </div>
   );
 }
