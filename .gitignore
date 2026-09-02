@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+build/
+.cache/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+coverage/
+.omc/
+test-results/

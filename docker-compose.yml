@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dashboards
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dashboards}
+      POSTGRES_DB: dashboards
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboards -d dashboards"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    image: ghcr.io/datadog-korea-user-group/datadog-dashboards:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://dashboards:${POSTGRES_PASSWORD:-dashboards}@db:5432/dashboards
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      AUTH_TRUST_HOST: "true"
+      SITE_URL: ${SITE_URL}
+    volumes:
+      - image-cache:/app/.next/cache
+    ports:
+      - "127.0.0.1:3010:3000"
+    labels:
+      com.datadoghq.ad.logs: '[{"source":"nodejs","service":"datadog-dashboards"}]'
+
+volumes:
+  db-data:
+  image-cache:

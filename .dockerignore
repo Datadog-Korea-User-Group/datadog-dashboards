@@ -1,0 +1,9 @@
+node_modules
+.next
+.cache
+.git
+.omc
+.env*
+!.env.example
+tests
+coverage

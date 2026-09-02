@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/* Datadog product UI tokens (mirrors app.datadoghq.com --ui-* custom properties). Light on :root, dark on .dark */
+:root {
+  --ui-background: #fff;
+  --ui-background-secondary: #f9fafb;
+  --ui-background-tertiary: #e2e5ed;
+  --ui-border: #e2e5ed;
+  --ui-text: #1c2b34fa;
+  --ui-text-secondary: #1c2b34ad;
+  --ui-text-tertiary: #1c2b3480;
+  --ui-text-disabled: #1c2b3459;
+  --ui-brand: #632ca6;
+  --ui-brand-contrast: #451481;
+  --ui-interaction-primary: #006bc2;
+  --ui-interaction-primary-contrast: #0953bf;
+  --ui-interaction-secondary: #eaf6fc;
+  --ui-interaction-secondary-contrast: #d4ecf9;
+  --ui-interaction-text: #5458f2;
+  --ui-interaction-callout: #f09;
+  --ui-status-success: #41c464;
+  --ui-status-success-contrast: #2a7e41;
+  --ui-status-success-soft: #ecf9ef;
+  --ui-status-warning: #f99d02;
+  --ui-status-warning-contrast: #c15800;
+  --ui-status-warning-soft: #fff6e3;
+  --ui-status-danger: #eb364b;
+  --ui-status-danger-contrast: #bc2b3c;
+  --ui-status-danger-soft: #fdebed;
+  --ui-code-background: #585f700d;
+  --ui-code-text: #1c2b34;
+  --ui-border-radius: 4px;
+  color-scheme: light;
+}
+
+.dark {
+  --ui-background: #1d1c1f;
+  --ui-background-secondary: #222126;
+  --ui-background-tertiary: #3b393d;
+  --ui-border: #3b393d;
+  --ui-text: #ffffffc2;
+  --ui-text-secondary: #ffffff82;
+  --ui-text-tertiary: #ffffff61;
+  --ui-text-disabled: #ffffff3d;
+  --ui-brand: #561d8c;
+  --ui-brand-contrast: #67309e;
+  --ui-interaction-primary: #3d8bd0;
+  --ui-interaction-primary-contrast: #579fdd;
+  --ui-interaction-secondary: #091222;
+  --ui-interaction-secondary-contrast: #0e1d36;
+  --ui-interaction-text: #7c7ff5;
+  --ui-interaction-callout: #e50089;
+  --ui-status-success: #349c50;
+  --ui-status-success-contrast: #52b76d;
+  --ui-status-success-soft: #0d2714;
+  --ui-status-warning: #cc9022;
+  --ui-status-warning-contrast: #e5a226;
+  --ui-status-warning-soft: #332408;
+  --ui-status-danger: #d33043;
+  --ui-status-danger-contrast: #eb364b;
+  --ui-status-danger-soft: #2f0a0f;
+  --ui-code-background: #ffffff0d;
+  --ui-code-text: #e6e6e6;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--ui-background);
+  --color-bg-secondary: var(--ui-background-secondary);
+  --color-bg-tertiary: var(--ui-background-tertiary);
+  --color-border: var(--ui-border);
+  --color-text: var(--ui-text);
+  --color-text-secondary: var(--ui-text-secondary);
+  --color-text-tertiary: var(--ui-text-tertiary);
+  --color-text-disabled: var(--ui-text-disabled);
+  --color-brand: var(--ui-brand);
+  --color-brand-contrast: var(--ui-brand-contrast);
+  --color-primary: var(--ui-interaction-primary);
+  --color-primary-contrast: var(--ui-interaction-primary-contrast);
+  --color-secondary: var(--ui-interaction-secondary);
+  --color-secondary-contrast: var(--ui-interaction-secondary-contrast);
+  --color-link: var(--ui-interaction-text);
+  --color-callout: var(--ui-interaction-callout);
+  --color-success: var(--ui-status-success);
+  --color-success-contrast: var(--ui-status-success-contrast);
+  --color-success-soft: var(--ui-status-success-soft);
+  --color-warning: var(--ui-status-warning);
+  --color-warning-contrast: var(--ui-status-warning-contrast);
+  --color-warning-soft: var(--ui-status-warning-soft);
+  --color-danger: var(--ui-status-danger);
+  --color-danger-contrast: var(--ui-status-danger-contrast);
+  --color-danger-soft: var(--ui-status-danger-soft);
+  --color-code-bg: var(--ui-code-background);
+  --color-code-text: var(--ui-code-text);
+  --radius-ui: var(--ui-border-radius);
+  --font-sans: var(--font-noto-sans), var(--font-noto-sans-kr), "Noto Sans", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+  --font-mono: var(--font-roboto-mono), "Roboto Mono", Menlo, "Liberation Mono", Courier, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html { font-size: 14px; }
+body { background: var(--ui-background-secondary); color: var(--ui-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+
+/* Primitive component classes shared across pages */
+@layer components {
+  .card { background: var(--ui-background); border: 1px solid var(--ui-border); border-radius: var(--ui-border-radius); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--ui-border-radius); font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; border: 1px solid transparent; transition: background .12s, border-color .12s; }
+  .btn:focus-visible { outline: 2px solid var(--ui-interaction-primary-contrast); outline-offset: 1px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary { background: var(--ui-interaction-primary); color: #fff; }
+  .btn-primary:hover { background: var(--ui-interaction-primary-contrast); }
+  .btn-secondary { background: var(--ui-background); color: var(--ui-text); border-color: var(--ui-border); }
+  .btn-secondary:hover { background: var(--ui-interaction-secondary); border-color: var(--ui-interaction-secondary-contrast); }
+  .btn-danger { background: var(--ui-status-danger); color: #fff; }
+  .btn-danger:hover { background: var(--ui-status-danger-contrast); }
+  .btn-sm { height: 26px; padding: 0 8px; font-size: 12px; }
+  .input { height: 32px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-border-radius); background: var(--ui-background); color: var(--ui-text); font-size: 13px; }
+  .input:focus { outline: 2px solid var(--ui-interaction-primary-contrast); outline-offset: -1px; border-color: transparent; }
+  .textarea { padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-border-radius); background: var(--ui-background); color: var(--ui-text); font-size: 13px; width: 100%; }
+  .textarea:focus { outline: 2px solid var(--ui-interaction-primary-contrast); outline-offset: -1px; border-color: transparent; }
+  .pill { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; }
+  .pill-neutral { background: var(--ui-background-tertiary); color: var(--ui-text-secondary); }
+  .pill-brand { background: color-mix(in srgb, var(--ui-brand) 12%, transparent); color: var(--ui-brand); }
+  .pill-success { background: var(--ui-status-success-soft); color: var(--ui-status-success-contrast); }
+  .pill-warning { background: var(--ui-status-warning-soft); color: var(--ui-status-warning-contrast); }
+  .pill-danger { background: var(--ui-status-danger-soft); color: var(--ui-status-danger-contrast); }
+  .link { color: var(--ui-interaction-text); text-decoration: none; }
+  .link:hover { text-decoration: underline; text-decoration-thickness: clamp(1px, .5px + .075em, 2px); }
+  .code { font-family: var(--font-mono); background: var(--ui-code-background); color: var(--ui-code-text); border-radius: var(--ui-border-radius); padding: 1px 5px; font-size: 12px; }
+  .muted { color: var(--ui-text-secondary); }
+  .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; color: var(--ui-text-tertiary); padding: 8px 12px; border-bottom: 1px solid var(--ui-border); background: var(--ui-background-secondary); }
+  .table td { padding: 10px 12px; border-bottom: 1px solid var(--ui-border); vertical-align: middle; }
+  .table tbody tr:hover { background: var(--ui-interaction-secondary); }
+}
