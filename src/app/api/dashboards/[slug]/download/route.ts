@@ -16,18 +16,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   // Unpublished dashboards are 404 for everyone, admins included.
   if (!row?.isPublished) return notFound();
 
-  const asked = Number(new URL(request.url).searchParams.get("revision"));
+  const query = new URL(request.url).searchParams;
+  const asked = Number(query.get("revision"));
   const revision = Number.isInteger(asked) && asked > 0 ? asked : undefined;
   const found = await getRevisionJson(row.id, revision);
   if (!found) return notFound();
 
   // Awaited so a refresh right after the click sees the new number.
   // Still caught: a counter failure must never block the download.
-  await db
-    .update(dashboards)
-    .set({ downloads: sql`${dashboards.downloads} + 1` })
-    .where(eq(dashboards.id, row.id))
-    .catch((e) => console.error("download counter", e));
+  // `inline=1` is the JSON viewer and Copy button reading the same bytes; not a download.
+  if (query.get("inline") !== "1") {
+    await db
+      .update(dashboards)
+      .set({ downloads: sql`${dashboards.downloads} + 1` })
+      .where(eq(dashboards.id, row.id))
+      .catch((e) => console.error("download counter", e));
+  }
 
   const filename = slug.replace(/[^a-zA-Z0-9_.-]/g, "-");
   return new Response(JSON.stringify(found.dashboardJson, null, 2), {

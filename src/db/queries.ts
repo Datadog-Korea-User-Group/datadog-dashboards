@@ -1,4 +1,5 @@
 import { and, arrayContains, count, desc, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { unstable_cache } from "next/cache";
 import { db } from "./index";
 import { dashboardRevisions, dashboards, ratings, users, type ConversionSummary } from "./schema";
 
@@ -22,46 +23,30 @@ export type DashboardListItem = {
   title: string;
   description: string;
   tags: string[];
-  integrations: string[];
-  source: string;
-  sourceId: number | null;
-  sourceUrl: string | null;
-  sourceOrgName: string | null;
-  sourceDownloads: number;
   qualityScore: number | null;
   screenshotUrl: string | null;
   downloads: number;
   views: number;
-  ratingAvg: string | null;
-  ratingCount: number;
-  createdAt: Date;
+  sourceOrgName: string | null;
   updatedAt: Date;
-  authorName: string | null;
   authorUsername: string | null;
   authorImage: string | null;
 };
 
+// Only what DashboardCard and DashboardTable render. No jsonb, readme or
+// conversion_summary: sort columns work in ORDER BY without being selected.
 const listColumns = {
   id: dashboards.id,
   slug: dashboards.slug,
   title: dashboards.title,
   description: dashboards.description,
   tags: dashboards.tags,
-  integrations: dashboards.integrations,
-  source: dashboards.source,
-  sourceId: dashboards.sourceId,
-  sourceUrl: dashboards.sourceUrl,
-  sourceOrgName: dashboards.sourceOrgName,
-  sourceDownloads: dashboards.sourceDownloads,
   qualityScore: dashboards.qualityScore,
   screenshotUrl: dashboards.screenshotUrl,
   downloads: dashboards.downloads,
   views: dashboards.views,
-  ratingAvg: dashboards.ratingAvg,
-  ratingCount: dashboards.ratingCount,
-  createdAt: dashboards.createdAt,
+  sourceOrgName: dashboards.sourceOrgName,
   updatedAt: dashboards.updatedAt,
-  authorName: users.name,
   authorUsername: users.username,
   authorImage: users.image,
 };
@@ -105,7 +90,7 @@ function orderBy(sort: Sort): SQL[] {
   }
 }
 
-export async function listDashboards(params: ListParams): Promise<{ items: DashboardListItem[]; total: number; page: number; pages: number }> {
+async function queryDashboards(params: ListParams): Promise<{ items: DashboardListItem[]; total: number; page: number; pages: number }> {
   const where = listWhere(params);
   const page = Math.max(1, params.page ?? 1);
 
@@ -124,6 +109,14 @@ export async function listDashboards(params: ListParams): Promise<{ items: Dashb
   const total = totals?.n ?? 0;
   return { items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
+
+export const DASHBOARDS_TAG = "dashboards";
+
+/** Listing is read-heavy and changes rarely; mutations call revalidateTag(DASHBOARDS_TAG). */
+export const listDashboards = unstable_cache(queryDashboards, ["dashboards-list"], {
+  revalidate: 60,
+  tags: [DASHBOARDS_TAG],
+});
 
 /**
  * Widget layouts of each dashboard's latest revision, for the LayoutSketch fallback.
@@ -152,7 +145,7 @@ export async function getSketchWidgets(dashboardIds: number[]): Promise<Map<numb
 export type DashboardDetail = {
   dashboard: typeof dashboards.$inferSelect;
   author: { id: string; name: string | null; username: string | null; image: string | null } | null;
-  latest: { revision: number; dashboardJson: Record<string, unknown>; changelog: string; createdAt: Date } | null;
+  latest: { revision: number; jsonBytes: number; changelog: string; createdAt: Date } | null;
 };
 
 export async function getDashboardBySlug(slug: string): Promise<DashboardDetail | null> {
@@ -170,7 +163,8 @@ export async function getDashboardBySlug(slug: string): Promise<DashboardDetail 
   const [latest] = await db
     .select({
       revision: dashboardRevisions.revision,
-      dashboardJson: dashboardRevisions.dashboardJson,
+      // Size only. The full jsonb averages ~76 KB and would land in the HTML.
+      jsonBytes: sql<number>`octet_length(${dashboardRevisions.dashboardJson}::text)`,
       changelog: dashboardRevisions.changelog,
       createdAt: dashboardRevisions.createdAt,
     })
@@ -251,7 +245,7 @@ export async function listIntegrations(limit = 60): Promise<IntegrationCount[]> 
   return res.rows as IntegrationCount[];
 }
 
-export async function getHomeData() {
+async function queryHomeData() {
   const [[totals], popular, recent, integrations] = await Promise.all([
     db.select({ n: count() }).from(dashboards).where(eq(dashboards.isPublished, true)),
     listDashboards({ sort: "downloads" }),
@@ -265,5 +259,10 @@ export async function getHomeData() {
     integrations,
   };
 }
+
+export const getHomeData = unstable_cache(queryHomeData, ["dashboards-home"], {
+  revalidate: 60,
+  tags: [DASHBOARDS_TAG],
+});
 
 export type { ConversionSummary };

@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { Link } from "@/i18n/navigation";
-import { getDashboardBySlug, getUserRating, listRevisions } from "@/db/queries";
+import { getDashboardBySlug, getSketchWidgets, getUserRating, listRevisions } from "@/db/queries";
 import type { ConversionSummary } from "@/db/schema";
 import { CopyButton } from "@/components/CopyButton";
 import { DownloadButton } from "@/components/DownloadButton";
@@ -111,7 +111,9 @@ export default async function DashboardDetailPage({
     session?.user?.id ? getUserRating(d.id, session.user.id) : Promise.resolve(null),
   ]);
 
-  const json = JSON.stringify(latest?.dashboardJson ?? {}, null, 2);
+  // The JSON is fetched by the viewer on demand, so it never reaches the HTML.
+  // Without a screenshot the sketch still needs layouts, trimmed to layout fields in SQL.
+  const sketch = d.screenshotUrl ? null : (await getSketchWidgets([d.id])).get(d.id);
   const downloadHref = `/api/dashboards/${encodeURIComponent(d.slug)}/download`;
   const giscus = process.env.GISCUS_REPO_ID
     ? {
@@ -149,7 +151,7 @@ export default async function DashboardDetailPage({
 
         <div className="flex items-center gap-2">
           <DownloadButton href={downloadHref} count={d.downloads} label={t("download")} />
-          <CopyButton text={json} />
+          <CopyButton url={`${downloadHref}?revision=${latest?.revision ?? 1}&inline=1`} />
           <details className="relative">
             <summary className="btn btn-secondary list-none cursor-pointer [&::-webkit-details-marker]:hidden">
               {t("importGuide")}
@@ -173,7 +175,7 @@ export default async function DashboardDetailPage({
             className="w-full h-auto"
           />
         ) : (
-          <LayoutSketch widgets={(latest?.dashboardJson as { widgets?: unknown })?.widgets} />
+          <LayoutSketch widgets={sketch} />
         )}
       </div>
 
@@ -202,7 +204,7 @@ export default async function DashboardDetailPage({
         </section>
       ) : null}
 
-      <JsonViewer json={json} />
+      {latest ? <JsonViewer slug={d.slug} revision={latest.revision} size={latest.jsonBytes} /> : null}
 
       {revisions.length > 0 ? (
         <section className="card">

@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
+import { DASHBOARDS_TAG } from "@/db/queries";
 import { dashboards, ratings } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 
@@ -32,6 +33,7 @@ export async function rateDashboard(dashboardId: number, stars: number) {
     .where(eq(dashboards.id, dashboardId));
 
   revalidatePath("/", "layout");
+  updateTag(DASHBOARDS_TAG);
 }
 
 export async function setPublished(formData: FormData) {
@@ -42,6 +44,7 @@ export async function setPublished(formData: FormData) {
     .set({ isPublished: formData.get("published") === "true", updatedAt: new Date() })
     .where(eq(dashboards.id, id));
   revalidatePath("/", "layout");
+  updateTag(DASHBOARDS_TAG);
 }
 
 export async function deleteDashboard(formData: FormData) {
@@ -50,6 +53,7 @@ export async function deleteDashboard(formData: FormData) {
   const locale = String(formData.get("locale") ?? "en");
   await db.delete(dashboards).where(eq(dashboards.id, id));
   revalidatePath("/", "layout");
+  updateTag(DASHBOARDS_TAG);
   redirectLocalized("/dashboards", locale);
 }
 

@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
+import { DASHBOARDS_TAG } from "@/db/queries";
 import { dashboardRevisions, dashboards } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 import { validateDashboardJson } from "@/lib/validate-dashboard";
@@ -44,5 +45,6 @@ export async function createRevision(_prev: RevisionState, formData: FormData): 
   await db.update(dashboards).set({ updatedAt: new Date() }).where(eq(dashboards.id, target.id));
 
   revalidatePath("/", "layout");
+  updateTag(DASHBOARDS_TAG);
   redirectLocalized(`/dashboards/${slug}`, formData.get("locale"));
 }

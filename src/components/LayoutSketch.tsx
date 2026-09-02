@@ -5,6 +5,8 @@ const COLS = 12;
 const VW = 1920;
 const VH = 1080;
 const GAP = 6;
+// ponytail: hard cap, a sketch of 60 boxes already reads as "busy dashboard".
+const MAX_WIDGETS = 60;
 
 function isLayout(v: unknown): v is Layout {
   if (typeof v !== "object" || v === null) return false;
@@ -14,7 +16,7 @@ function isLayout(v: unknown): v is Layout {
 
 function toWidgets(input: unknown): SketchWidget[] {
   if (!Array.isArray(input)) return [];
-  return input.flatMap((w) => {
+  return input.slice(0, MAX_WIDGETS).flatMap((w) => {
     if (typeof w !== "object" || w === null) return [];
     const o = w as Record<string, unknown>;
     if (!isLayout(o.layout)) return [];

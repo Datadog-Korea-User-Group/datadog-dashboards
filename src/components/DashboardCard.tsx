@@ -15,7 +15,7 @@ export function DashboardCard({ item, sketch }: { item: DashboardListItem; sketc
             alt=""
             width={1920}
             height={1080}
-            sizes="(max-width: 768px) 100vw, 33vw"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             quality={70}
             className="w-full aspect-video object-cover object-top"
           />

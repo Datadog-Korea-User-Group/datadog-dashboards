@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { countRecentUploads } from "@/db/queries";
+import { DASHBOARDS_TAG, countRecentUploads } from "@/db/queries";
 import { dashboardRevisions, dashboards } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 import { uniqueSlug } from "@/lib/slug";
@@ -56,5 +56,6 @@ export async function createDashboard(_prev: UploadState, formData: FormData): P
   });
 
   revalidatePath("/", "layout");
+  updateTag(DASHBOARDS_TAG);
   redirectLocalized(`/dashboards/${slug}`, formData.get("locale"));
 }
