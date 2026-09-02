@@ -52,3 +52,4 @@ export async function deleteDashboard(formData: FormData) {
   revalidatePath("/", "layout");
   redirectLocalized("/dashboards", locale);
 }
+

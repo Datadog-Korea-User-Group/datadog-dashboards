@@ -43,7 +43,8 @@
     "next": "Next",
     "search": "Search",
     "any": "Any",
-    "apply": "Apply"
+    "apply": "Apply",
+    "sortViews": "Most viewed"
   },
   "detail": {
     "download": "Download JSON",
@@ -72,7 +73,8 @@
     "integrations": "Integrations",
     "created": "Created {date}",
     "signInToRate": "Sign in to rate.",
-    "unpublished": "Unpublished"
+    "unpublished": "Unpublished",
+    "views": "{count} views"
   },
   "quality": {
     "native": "Native",
@@ -112,5 +114,8 @@
   },
   "footer": {
     "builtBy": "Built by Datadog Korea User Group"
+  },
+  "comments": {
+    "title": "Comments"
   }
 }

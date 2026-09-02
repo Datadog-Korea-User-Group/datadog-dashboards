@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Download } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import type { DashboardListItem } from "@/db/queries";
 import { LayoutSketch } from "./LayoutSketch";
@@ -30,8 +30,8 @@ export function DashboardCard({ item, sketch }: { item: DashboardListItem; sketc
         </div>
         {item.description ? <p className="text-xs muted line-clamp-2">{item.description}</p> : null}
         <div className="mt-auto pt-1 flex items-center gap-2 text-xs text-text-tertiary">
-          <Download size={12} />
-          {item.downloads.toLocaleString()}
+          <span className="inline-flex items-center gap-1"><Download size={12} />{item.downloads.toLocaleString()}</span>
+          <span className="inline-flex items-center gap-1"><Eye size={12} />{item.views.toLocaleString()}</span>
           {item.sourceOrgName ? <span className="truncate">· {item.sourceOrgName}</span> : null}
           {item.authorUsername ? <span className="truncate">· {item.authorUsername}</span> : null}
         </div>

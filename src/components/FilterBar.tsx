@@ -19,7 +19,7 @@ export async function FilterBar({
   const t = await getTranslations("list");
   const tq = await getTranslations("quality");
   const sortLabel: Record<Sort, string> = {
-    downloads: t("sortDownloads"), newest: t("sortNewest"), rating: t("sortRating"), source: t("sortSource"),
+    downloads: t("sortDownloads"), views: t("sortViews"), newest: t("sortNewest"), rating: t("sortRating"), source: t("sortSource"),
   };
 
   return (

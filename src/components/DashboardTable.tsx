@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Download, Eye } from "lucide-react";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import type { DashboardListItem } from "@/db/queries";
@@ -7,6 +8,7 @@ import { QualityBadge } from "./QualityBadge";
 /** Datadog "Dashboard List" table: Name · Popularity · Author · Quality · Modified. */
 export async function DashboardTable({ items }: { items: DashboardListItem[] }) {
   const t = await getTranslations("list");
+  const td = await getTranslations("detail");
   const format = await getFormatter();
   const max = Math.max(1, ...items.map((i) => i.downloads));
 
@@ -39,11 +41,16 @@ export async function DashboardTable({ items }: { items: DashboardListItem[] }) 
                 {d.description ? <p className="text-xs muted line-clamp-1 mt-0.5">{d.description}</p> : null}
               </td>
               <td>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" title={td("downloads", { count: d.downloads.toLocaleString() })}>
                   <span className="h-1.5 flex-1 max-w-24 rounded-full bg-bg-tertiary overflow-hidden">
                     <span className="block h-full bg-brand" style={{ width: `${Math.round((d.downloads / max) * 100)}%` }} />
                   </span>
+                  <Download size={12} className="text-text-tertiary shrink-0" />
                   <span className="text-xs tabular-nums muted">{d.downloads.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-0.5 text-xs muted" title={td("views", { count: d.views.toLocaleString() })}>
+                  <Eye size={12} className="shrink-0" />
+                  <span className="tabular-nums">{d.views.toLocaleString()}</span>
                 </div>
               </td>
               <td>

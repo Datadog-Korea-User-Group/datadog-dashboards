@@ -8,6 +8,13 @@
       "when": 1788309554608,
       "tag": "0000_glorious_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788314148883,
+      "tag": "0001_moaning_oracle",
+      "breakpoints": true
     }
   ]
 }

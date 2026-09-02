@@ -4,7 +4,7 @@ import { dashboardRevisions, dashboards, ratings, users, type ConversionSummary 
 
 export const PAGE_SIZE = 24;
 
-export const SORTS = ["downloads", "newest", "rating", "source"] as const;
+export const SORTS = ["downloads", "views", "newest", "rating", "source"] as const;
 export const QUALITY_BANDS = ["good", "fair", "poor", "unknown"] as const;
 export type Sort = (typeof SORTS)[number];
 export type QualityBand = (typeof QUALITY_BANDS)[number];
@@ -31,6 +31,7 @@ export type DashboardListItem = {
   qualityScore: number | null;
   screenshotUrl: string | null;
   downloads: number;
+  views: number;
   ratingAvg: string | null;
   ratingCount: number;
   createdAt: Date;
@@ -55,6 +56,7 @@ const listColumns = {
   qualityScore: dashboards.qualityScore,
   screenshotUrl: dashboards.screenshotUrl,
   downloads: dashboards.downloads,
+  views: dashboards.views,
   ratingAvg: dashboards.ratingAvg,
   ratingCount: dashboards.ratingCount,
   createdAt: dashboards.createdAt,
@@ -90,6 +92,8 @@ function listWhere({ q, tag, integration, quality, authorId }: ListParams): SQL 
 function orderBy(sort: Sort): SQL[] {
   // id desc is the tie-breaker so paging stays stable.
   switch (sort) {
+    case "views":
+      return [desc(dashboards.views), desc(dashboards.downloads), desc(dashboards.id)];
     case "newest":
       return [desc(dashboards.createdAt), desc(dashboards.id)];
     case "rating":

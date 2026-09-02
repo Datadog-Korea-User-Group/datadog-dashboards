@@ -43,7 +43,8 @@
     "next": "다음",
     "search": "검색",
     "any": "전체",
-    "apply": "적용"
+    "apply": "적용",
+    "sortViews": "조회순"
   },
   "detail": {
     "download": "JSON 다운로드",
@@ -72,7 +73,8 @@
     "integrations": "통합",
     "created": "{date} 등록",
     "signInToRate": "평점을 남기려면 로그인하세요.",
-    "unpublished": "비공개"
+    "unpublished": "비공개",
+    "views": "조회 {count}회"
   },
   "quality": {
     "native": "네이티브",
@@ -112,5 +114,8 @@
   },
   "footer": {
     "builtBy": "Datadog Korea User Group 제작"
+  },
+  "comments": {
+    "title": "댓글"
   }
 }

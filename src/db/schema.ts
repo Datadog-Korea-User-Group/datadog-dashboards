@@ -73,6 +73,7 @@ export const dashboards = pgTable("dashboards", {
   conversionSummary: jsonb("conversion_summary").$type<ConversionSummary>(),
   screenshotUrl: text("screenshot_url"),
   downloads: integer("downloads").notNull().default(0),
+  views: integer("views").notNull().default(0),
   ratingAvg: numeric("rating_avg", { precision: 3, scale: 2 }),
   ratingCount: integer("rating_count").notNull().default(0),
   isPublished: boolean("is_published").notNull().default(true),

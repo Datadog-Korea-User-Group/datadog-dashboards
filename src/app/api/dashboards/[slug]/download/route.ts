@@ -21,7 +21,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const found = await getRevisionJson(row.id, revision);
   if (!found) return notFound();
 
-  db.update(dashboards)
+  // Awaited so a refresh right after the click sees the new number.
+  // Still caught: a counter failure must never block the download.
+  await db
+    .update(dashboards)
     .set({ downloads: sql`${dashboards.downloads} + 1` })
     .where(eq(dashboards.id, row.id))
     .catch((e) => console.error("download counter", e));

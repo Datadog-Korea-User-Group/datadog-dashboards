@@ -1,17 +1,20 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { Download, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { Link } from "@/i18n/navigation";
 import { getDashboardBySlug, getUserRating, listRevisions } from "@/db/queries";
 import type { ConversionSummary } from "@/db/schema";
 import { CopyButton } from "@/components/CopyButton";
+import { DownloadButton } from "@/components/DownloadButton";
+import { Giscus } from "@/components/Giscus";
 import { JsonViewer } from "@/components/JsonViewer";
 import { LayoutSketch } from "@/components/LayoutSketch";
 import { QualityBadge } from "@/components/QualityBadge";
 import { RatingStars } from "@/components/RatingStars";
+import { ViewPing } from "@/components/ViewPing";
 import { Markdown } from "@/lib/markdown";
 import { deleteDashboard, rateDashboard, setPublished } from "./actions";
 
@@ -101,6 +104,7 @@ export default async function DashboardDetailPage({
   if (!d.isPublished && !isAdmin && !isOwner) notFound();
 
   const t = await getTranslations("detail");
+  const tc = await getTranslations("comments");
   const format = await getFormatter();
   const [revisions, myRating] = await Promise.all([
     listRevisions(d.id),
@@ -109,9 +113,18 @@ export default async function DashboardDetailPage({
 
   const json = JSON.stringify(latest?.dashboardJson ?? {}, null, 2);
   const downloadHref = `/api/dashboards/${encodeURIComponent(d.slug)}/download`;
+  const giscus = process.env.GISCUS_REPO_ID
+    ? {
+        repo: process.env.GISCUS_REPO ?? "",
+        repoId: process.env.GISCUS_REPO_ID,
+        category: process.env.GISCUS_CATEGORY ?? "",
+        categoryId: process.env.GISCUS_CATEGORY_ID ?? "",
+      }
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
+      <ViewPing slug={d.slug} />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{d.title}</h1>
@@ -119,6 +132,7 @@ export default async function DashboardDetailPage({
             {!d.isPublished ? <span className="pill pill-danger">{t("unpublished")}</span> : null}
             <QualityBadge score={d.qualityScore} showScore />
             <span className="pill pill-neutral">{t("downloads", { count: d.downloads.toLocaleString() })}</span>
+            <span className="pill pill-neutral">{t("views", { count: d.views.toLocaleString() })}</span>
             {latest ? <span className="pill pill-neutral">{t("revision", { n: latest.revision })}</span> : null}
             <span className="muted">{t("created", { date: format.dateTime(d.createdAt, { dateStyle: "medium" }) })}</span>
             {author?.username ? (
@@ -134,7 +148,7 @@ export default async function DashboardDetailPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <a href={downloadHref} download className="btn btn-primary"><Download size={14} />{t("download")}</a>
+          <DownloadButton href={downloadHref} count={d.downloads} label={t("download")} />
           <CopyButton text={json} />
           <details className="relative">
             <summary className="btn btn-secondary list-none cursor-pointer [&::-webkit-details-marker]:hidden">
@@ -239,6 +253,13 @@ export default async function DashboardDetailPage({
           ) : null}
         </div>
       </section>
+
+      {giscus ? (
+        <section className="card p-4 flex flex-col gap-3">
+          <h2 className="font-bold">{tc("title")}</h2>
+          <Giscus {...giscus} term={d.slug} />
+        </section>
+      ) : null}
     </div>
   );
 }
