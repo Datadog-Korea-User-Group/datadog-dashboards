@@ -7,7 +7,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
   images: {
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 31536000,
+    // Optimized variants are revalidated hourly against the file on disk, so re-captured screenshots refresh without
+    // cache-busting query strings (which would let anyone mint unbounded optimizer cache entries).
+    minimumCacheTTL: 3600,
+    localPatterns: [{ pathname: "/screenshots/**", search: "" }],
     deviceSizes: [640, 960, 1280, 1920],
     imageSizes: [320, 480],
   },
@@ -24,9 +27,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Screenshots are content-addressed by source id and never rewritten.
+        // Screenshots keep a stable path and may be re-captured; an hour of client caching is enough.
         source: "/screenshots/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+        headers: [{ key: "Cache-Control", value: "public, max-age=3600" }],
       },
     ];
   },

@@ -4,8 +4,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: dashboards
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dashboards}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: dashboards
+    mem_limit: 1g
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
@@ -20,11 +21,19 @@ services:
     image: ghcr.io/datadog-korea-user-group/datadog-dashboards:${IMAGE_TAG:-latest}
     build: .   # `docker compose build` from a checkout when the registry image is not reachable
     restart: unless-stopped
+    # A burst of image/OG rendering must not take the host down with it
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/robots.txt >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://dashboards:${POSTGRES_PASSWORD:-dashboards}@db:5432/dashboards
+      DATABASE_URL: postgres://dashboards:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/dashboards
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
