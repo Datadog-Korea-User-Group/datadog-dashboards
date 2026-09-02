@@ -24,8 +24,11 @@ export function firstInWindow(key: string, windowMs: number): boolean {
   return true;
 }
 
-/** First hop of x-forwarded-for is the client; the rest are proxies we do not trust. */
+/**
+ * Last hop of x-forwarded-for, not the first: our own proxy appends the peer it saw, so
+ * the trailing entry is the only one a client cannot forge by sending its own header.
+ */
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for") ?? "";
-  return forwarded.split(",")[0]!.trim() || request.headers.get("x-real-ip")?.trim() || "unknown";
+  const hops = (request.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  return hops.at(-1) || request.headers.get("x-real-ip")?.trim() || "unknown";
 }

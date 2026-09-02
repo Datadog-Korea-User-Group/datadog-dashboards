@@ -5,8 +5,22 @@ import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { DASHBOARDS_TAG, countRecentComments, enqueuePreview } from "@/db/queries";
-import { REACTION_EMOJIS, comments, dashboards, ratings, reactions } from "@/db/schema";
+import { REACTION_EMOJIS, comments, dashboardRevisions, dashboards, ratings, reactions } from "@/db/schema";
+import { firstInWindow } from "@/lib/recent-actions";
 import { redirectLocalized } from "@/lib/redirect-localized";
+
+// ponytail: per-process budgets, same ceiling as the view counter. Move to the database
+// or Redis if the site ever runs more than one instance.
+const REACTIONS_PER_10_MIN = 60;
+const RATINGS_PER_HOUR = 20;
+
+/** Throws once a user exceeds `limit` calls to `bucket` inside `windowMs`. */
+function spend(bucket: string, userId: string, limit: number, windowMs: number) {
+  for (let slot = 0; slot < limit; slot++) {
+    if (firstInWindow(`${bucket}:${userId}:${slot}`, windowMs)) return;
+  }
+  throw new Error("Too many requests");
+}
 
 /** Interactions only make sense on a dashboard the public can see. */
 async function assertInteractable(dashboardId: number) {
@@ -28,6 +42,7 @@ export async function rateDashboard(dashboardId: number, stars: number) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
   if (!(await assertInteractable(dashboardId))) throw new Error("Not available");
+  spend("rate", session.user.id, RATINGS_PER_HOUR, 3600_000);
   const n = Math.min(5, Math.max(1, Math.round(stars)));
 
   await db
@@ -109,6 +124,7 @@ export async function toggleReaction(dashboardId: number, emoji: string) {
   if (!session?.user?.id) throw new Error("Unauthorized");
   if (!(REACTION_EMOJIS as readonly string[]).includes(emoji)) throw new Error("Unknown reaction");
   if (!(await assertInteractable(dashboardId))) throw new Error("Not available");
+  spend("react", session.user.id, REACTIONS_PER_10_MIN, 600_000);
 
   const where = and(
     eq(reactions.dashboardId, dashboardId),
@@ -128,6 +144,11 @@ export async function regeneratePreview(formData: FormData) {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const dashboardId = Number(formData.get("dashboardId"));
+  const revision = Number(formData.get("revision"));
+  if (!Number.isInteger(dashboardId) || !Number.isInteger(revision) || revision < 1) {
+    throw new Error("Bad request");
+  }
+
   const [target] = await db
     .select({ authorId: dashboards.authorId })
     .from(dashboards)
@@ -136,6 +157,13 @@ export async function regeneratePreview(formData: FormData) {
   if (!target) return;
   if (target.authorId !== session.user.id && session.user.role !== "admin") throw new Error("Forbidden");
 
-  await enqueuePreview(dashboardId, Number(formData.get("revision")));
+  const [exists] = await db
+    .select({ revision: dashboardRevisions.revision })
+    .from(dashboardRevisions)
+    .where(and(eq(dashboardRevisions.dashboardId, dashboardId), eq(dashboardRevisions.revision, revision))!)
+    .limit(1);
+  if (!exists) throw new Error("No such revision");
+
+  await enqueuePreview(dashboardId, revision);
   revalidatePath("/", "layout");
 }

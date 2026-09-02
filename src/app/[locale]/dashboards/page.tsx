@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { absolute, languageAlternates } from "@/lib/site-url";
 import { listDashboards, listIntegrations, parseQuality, parseSort } from "@/db/queries";
+
+// Beyond this a page number is a crawler, not a reader; it would only mint cache keys.
+const MAX_PAGE = 500;
 import { DashboardTable } from "@/components/DashboardTable";
 import { FilterBar } from "@/components/FilterBar";
 import { Pagination } from "@/components/Pagination";
@@ -41,17 +44,18 @@ export default async function DashboardsPage({
   const sp = await searchParams;
   const t = await getTranslations("list");
 
-  const q = one(sp.q);
-  const tag = one(sp.tag);
-  const integration = one(sp.integration);
+  // These land in the cache key, so an arbitrary URL must not mint an arbitrary entry.
+  const q = one(sp.q)?.trim().slice(0, 100) || undefined;
+  const tag = /^[a-z0-9._-]{1,50}$/.test(one(sp.tag) ?? "") ? one(sp.tag) : undefined;
   const quality = parseQuality(one(sp.quality));
   const sort = parseSort(one(sp.sort));
-  const page = Math.max(1, Number(one(sp.page)) || 1);
+  const page = Math.min(Math.max(1, Number(one(sp.page)) || 1), MAX_PAGE);
 
-  const [{ items, total, pages }, integrations] = await Promise.all([
-    listDashboards({ q, tag, integration, quality, sort, page }),
-    listIntegrations(),
-  ]);
+  const integrations = await listIntegrations();
+  const asked = one(sp.integration);
+  const integration = integrations.some((i) => i.name === asked) ? asked : undefined;
+
+  const { items, total, pages } = await listDashboards({ q, tag, integration, quality, sort, page });
 
   return (
     <div className="flex flex-col gap-4">

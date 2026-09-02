@@ -12,6 +12,8 @@ import { uniqueSlug } from "@/lib/slug";
 import { validateDashboardJson } from "@/lib/validate-dashboard";
 
 /** `error` is a key under `upload.errors` in messages/*.json. */
+const MAX_README_CHARS = 20_000;
+
 export type UploadState = { error: string | null };
 
 const UPLOADS_PER_HOUR = 10;
@@ -45,7 +47,7 @@ export async function createDashboard(_prev: UploadState, formData: FormData): P
         slug,
         title,
         description: String(formData.get("description") ?? "").trim().slice(0, 500),
-        readme: String(formData.get("readme") ?? ""),
+        readme: String(formData.get("readme") ?? "").trim().slice(0, MAX_README_CHARS),
         tags: parseTags(String(formData.get("tags") ?? "")),
         authorId: session.user.id,
         source: "user",
