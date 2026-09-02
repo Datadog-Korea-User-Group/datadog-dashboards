@@ -48,7 +48,7 @@ export class ClaudeError extends Error {
 export async function callClaude(model: string, systemPrompt: string, input: unknown, opts: { timeoutMs?: number } = {}): Promise<{ items: TranslationResult[] }> {
   const args = [
     "-p", "--no-session-persistence", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
-    "--setting-sources", "", "--disable-slash-commands", "--no-chrome", "--max-turns", "1",
+    "--setting-sources", "", "--disable-slash-commands", "--no-chrome", "--max-turns", "3", // structured output uses an internal tool turn
     "--model", model, "--output-format", "json", "--json-schema", outputSchema(), "--system-prompt", systemPrompt,
   ];
   const env = { ...process.env };
