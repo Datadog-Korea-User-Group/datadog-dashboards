@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { Flame, Layers, Sparkles } from "lucide-react";
 import { absolute, languageAlternates } from "@/lib/site-url";
 import { Link } from "@/i18n/navigation";
-import { getHomeData, getSketchWidgets } from "@/db/queries";
+import { getHomeData } from "@/db/queries";
 import { DashboardCard } from "@/components/DashboardCard";
 import { HeroArt } from "@/components/HeroArt";
 import { CountUp } from "@/components/CountUp";
@@ -25,15 +25,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const tn = await getTranslations("nav");
   const th = await getTranslations("home");
 
-  const { total, popular, recent, integrations } = await getHomeData();
-  const sketches = await getSketchWidgets(
-    [...popular, ...recent].filter((d) => !d.screenshotUrl).map((d) => d.id),
-  );
+  const { total, popular, recent, integrations, sketches } = await getHomeData();
 
   const grid = (items: typeof popular) => (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item, i) => (
-        <DashboardCard key={item.id} item={item} sketch={sketches.get(item.id)} index={i} />
+        <DashboardCard key={item.id} item={item} sketch={sketches[item.id]} index={i} />
       ))}
     </div>
   );

@@ -152,6 +152,15 @@ export async function getSketchWidgets(dashboardIds: number[]): Promise<Map<numb
   return new Map(rows.map((r) => [r.id, r.widgets ?? []]));
 }
 
+/** One dashboard's sketch, cached per revision so a re-render does not re-scan the jsonb. */
+export function getSketchWidgetsCached(dashboardId: number, revision: number) {
+  return unstable_cache(
+    async () => (await getSketchWidgets([dashboardId])).get(dashboardId) ?? [],
+    ["dashboard-sketch", String(dashboardId), String(revision)],
+    { revalidate: 3600, tags: [DASHBOARDS_TAG] },
+  )();
+}
+
 export type DashboardDetail = {
   dashboard: typeof dashboards.$inferSelect;
   author: { id: string; name: string | null; username: string | null; image: string | null } | null;
@@ -212,7 +221,8 @@ export async function listRevisions(dashboardId: number) {
     .from(dashboardRevisions)
     .leftJoin(users, eq(dashboardRevisions.createdBy, users.id))
     .where(eq(dashboardRevisions.dashboardId, dashboardId))
-    .orderBy(desc(dashboardRevisions.revision));
+    .orderBy(desc(dashboardRevisions.revision))
+    .limit(MAX_REVISIONS);
 }
 
 /** Dashboard JSON of one revision, or the latest when `revision` is undefined. */
@@ -257,8 +267,12 @@ export async function countRecentUploads(userId: string): Promise<number> {
 }
 
 /** Non-deleted comments, oldest first, with their author. */
+export const MAX_COMMENTS = 200;
+export const MAX_REVISIONS = 50;
+
+/** Newest MAX_COMMENTS, returned oldest-first so the thread still reads top to bottom. */
 export async function listComments(dashboardId: number) {
-  return db
+  const newest = await db
     .select({
       id: comments.id,
       body: comments.body,
@@ -271,7 +285,9 @@ export async function listComments(dashboardId: number) {
     .from(comments)
     .leftJoin(users, eq(comments.userId, users.id))
     .where(and(eq(comments.dashboardId, dashboardId), isNull(comments.deletedAt))!)
-    .orderBy(asc(comments.createdAt), asc(comments.id));
+    .orderBy(desc(comments.createdAt), desc(comments.id))
+    .limit(MAX_COMMENTS);
+  return newest.reverse();
 }
 
 /** Comments posted by a user in the last hour — the rate limit. */
@@ -337,11 +353,16 @@ async function queryHomeData() {
     listDashboards({ sort: "newest" }),
     listIntegrations(12),
   ]);
+  const cards = [...popular.items.slice(0, 12), ...recent.items.slice(0, 12)];
+  const widgets = await getSketchWidgets(cards.filter((d) => !d.screenshotUrl).map((d) => d.id));
+
   return {
     total: totals?.n ?? 0,
     popular: popular.items.slice(0, 12),
     recent: recent.items.slice(0, 12),
     integrations,
+    // A plain object, not a Map: unstable_cache round-trips this through JSON.
+    sketches: Object.fromEntries(widgets) as Record<string, unknown[]>,
   };
 }
 

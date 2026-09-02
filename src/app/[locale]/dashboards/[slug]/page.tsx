@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { auth, signIn } from "@/auth";
 import { Link } from "@/i18n/navigation";
-import { getDashboardBySlug, getPreviewJob, getSketchWidgets, getUserRating, listComments, listReactions, listRevisions } from "@/db/queries";
+import { getDashboardBySlug, MAX_COMMENTS, getPreviewJob, getSketchWidgetsCached, getUserRating, listComments, listReactions, listRevisions } from "@/db/queries";
 import type { ConversionSummary } from "@/db/schema";
 import { CopyButton } from "@/components/CopyButton";
 import { DownloadButton } from "@/components/DownloadButton";
@@ -160,7 +160,7 @@ export default async function DashboardDetailPage({
 
   // The JSON is fetched by the viewer on demand, so it never reaches the HTML.
   // Without a screenshot the sketch still needs layouts, trimmed to layout fields in SQL.
-  const sketch = d.screenshotUrl ? null : (await getSketchWidgets([d.id])).get(d.id);
+  const sketch = d.screenshotUrl || !latest ? null : await getSketchWidgetsCached(d.id, latest.revision);
   const canonical = absolute(locale, `/dashboards/${d.slug}`);
   const jsonLd = {
     "@context": "https://schema.org",
@@ -358,6 +358,10 @@ export default async function DashboardDetailPage({
 
       <section className="card p-4 flex flex-col gap-4">
         <h2 className="font-bold">{tc("count", { count: thread.length })}</h2>
+
+        {thread.length >= MAX_COMMENTS ? (
+          <p className="text-xs muted">{tc("showingLatest", { count: MAX_COMMENTS })}</p>
+        ) : null}
 
         {thread.length === 0 ? (
           <p className="text-xs muted">{tc("empty")}</p>

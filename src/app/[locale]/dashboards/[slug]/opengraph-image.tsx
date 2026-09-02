@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { ImageResponse } from "next/og";
 import sharp from "sharp";
@@ -17,6 +18,48 @@ const BAR = 90;
 const SHOT_HEIGHT = size.height - BAR;
 
 const headers = { "Cache-Control": "public, max-age=86400, s-maxage=86400" };
+
+// Rendering an OG card costs a jsonb read, a sharp re-encode and a Satori layout, and the
+// result only changes with the revision. Keep the bytes next to the image cache volume.
+// undefined = not probed yet, null = nowhere writable, so stop trying.
+let cacheDir: string | null | undefined;
+
+async function dir(): Promise<string | null> {
+  if (cacheDir !== undefined) return cacheDir;
+  for (const candidate of [path.join(process.cwd(), ".next", "cache", "og"), path.join(os.tmpdir(), "dd-og")]) {
+    try {
+      await mkdir(candidate, { recursive: true });
+      return (cacheDir = candidate);
+    } catch {
+      /* try the next one */
+    }
+  }
+  return (cacheDir = null);
+}
+
+const png = (bytes: Buffer | Uint8Array) =>
+  new Response(new Uint8Array(bytes), { headers: { ...headers, "content-type": "image/png" } });
+
+async function cached(key: string): Promise<Buffer | null> {
+  const base = await dir();
+  if (!base) return null;
+  try {
+    return await readFile(path.join(base, `${key}.png`));
+  } catch {
+    return null;
+  }
+}
+
+/** Renders, stores and returns the PNG. A cache write failure must not fail the request. */
+async function renderAndStore(key: string | null, element: React.ReactElement): Promise<Response> {
+  const bytes = Buffer.from(await new ImageResponse(element, { ...size, headers }).arrayBuffer());
+  const base = key ? await dir() : null;
+  if (base && key) await writeFile(path.join(base, `${key}.png`), bytes).catch(() => {});
+  return png(bytes);
+}
+
+// A huge screenshot is not worth decoding for a 1200x630 card.
+const MAX_SHOT_BYTES = 5 * 1024 * 1024;
 const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** Satori cannot decode webp, so sharp re-encodes the screenshot as a JPEG data URL. */
@@ -29,6 +72,8 @@ async function screenshotDataUrl(screenshotUrl: string): Promise<string | null> 
     const target = path.resolve(process.cwd(), "public", `.${new URL(screenshotUrl, "http://x").pathname}`);
     if (!target.startsWith(SHOT_ROOT + path.sep)) return null;
     if (!/^[\w.-]+\.webp$/.test(path.basename(target))) return null;
+
+    if ((await stat(target)).size > MAX_SHOT_BYTES) return null;
 
     const file = await readFile(target);
     const jpeg = await sharp(file)
@@ -70,19 +115,24 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
   // Never throw: an unknown slug still has to return an image.
   const found = await getDashboardBySlug(slug).catch(() => null);
   if (!found?.dashboard.isPublished) {
-    return new ImageResponse(<Fallback title="Datadog Dashboards" description="Community dashboards for Datadog." />, { ...size, headers });
+    return renderAndStore(null, <Fallback title="Datadog Dashboards" description="Community dashboards for Datadog." />);
   }
 
   const d = found.dashboard;
+  const key = `${d.id}-${found.latest?.revision ?? 0}`;
+  const hit = await cached(key);
+  if (hit) return png(hit);
+
   const shot = d.screenshotUrl ? await screenshotDataUrl(d.screenshotUrl) : null;
   if (!shot) {
-    return new ImageResponse(<Fallback title={d.title} description={d.description} />, { ...size, headers });
+    return renderAndStore(key, <Fallback title={d.title} description={d.description} />);
   }
 
   const band = qualityBand(d.qualityScore);
   const pill = { good: "#2a7e41", fair: "#c15800", poor: "#bc2b3c", unknown: "#585f70" }[band];
 
-  return new ImageResponse(
+  return renderAndStore(
+    key,
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#fff" }}>
         <img src={shot} width={size.width} height={SHOT_HEIGHT} alt="" style={{ objectFit: "cover" }} />
@@ -99,6 +149,5 @@ export default async function OpengraphImage({ params }: { params: Promise<{ slu
         </div>
       </div>
     ),
-    { ...size, headers },
   );
 }

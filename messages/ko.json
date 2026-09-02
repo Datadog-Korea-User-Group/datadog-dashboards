@@ -139,7 +139,8 @@
       "rateLimit": "최근 1시간 댓글이 너무 많습니다.",
       "signIn": "댓글을 남기려면 로그인하세요.",
       "unavailable": "이 대시보드는 이용할 수 없습니다."
-    }
+    },
+    "showingLatest": "최근 댓글 {count}개를 표시합니다."
   },
   "reactions": {
     "title": "반응",

@@ -139,7 +139,8 @@
       "rateLimit": "Too many comments in the last hour.",
       "signIn": "Sign in to comment.",
       "unavailable": "This dashboard is not available."
-    }
+    },
+    "showingLatest": "Showing the latest {count} comments."
   },
   "reactions": {
     "title": "Reactions",
