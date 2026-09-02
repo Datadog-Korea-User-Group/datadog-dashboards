@@ -37,7 +37,8 @@ services:
       GISCUS_CATEGORY: ${GISCUS_CATEGORY:-Announcements}
       GISCUS_CATEGORY_ID: ${GISCUS_CATEGORY_ID:-DIC_kwDOULXkRM4DEsH0}
     volumes:
-      - image-cache:/app/.next/cache
+      # Persist only optimized images across deploys; the data cache must not outlive a build.
+      - image-cache:/app/.next/cache/images
     ports:
       - "127.0.0.1:3010:3000"
     labels:
