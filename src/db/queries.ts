@@ -1,0 +1,265 @@
+import { and, arrayContains, count, desc, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { db } from "./index";
+import { dashboardRevisions, dashboards, ratings, users, type ConversionSummary } from "./schema";
+
+export const PAGE_SIZE = 24;
+
+export const SORTS = ["downloads", "newest", "rating", "source"] as const;
+export const QUALITY_BANDS = ["good", "fair", "poor", "unknown"] as const;
+export type Sort = (typeof SORTS)[number];
+export type QualityBand = (typeof QUALITY_BANDS)[number];
+
+export function parseSort(value?: string | null): Sort {
+  return (SORTS as readonly string[]).includes(value ?? "") ? (value as Sort) : "downloads";
+}
+export function parseQuality(value?: string | null): QualityBand | undefined {
+  return (QUALITY_BANDS as readonly string[]).includes(value ?? "") ? (value as QualityBand) : undefined;
+}
+
+export type DashboardListItem = {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  tags: string[];
+  integrations: string[];
+  source: string;
+  sourceId: number | null;
+  sourceUrl: string | null;
+  sourceOrgName: string | null;
+  sourceDownloads: number;
+  qualityScore: number | null;
+  screenshotUrl: string | null;
+  downloads: number;
+  ratingAvg: string | null;
+  ratingCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  authorName: string | null;
+  authorUsername: string | null;
+  authorImage: string | null;
+};
+
+const listColumns = {
+  id: dashboards.id,
+  slug: dashboards.slug,
+  title: dashboards.title,
+  description: dashboards.description,
+  tags: dashboards.tags,
+  integrations: dashboards.integrations,
+  source: dashboards.source,
+  sourceId: dashboards.sourceId,
+  sourceUrl: dashboards.sourceUrl,
+  sourceOrgName: dashboards.sourceOrgName,
+  sourceDownloads: dashboards.sourceDownloads,
+  qualityScore: dashboards.qualityScore,
+  screenshotUrl: dashboards.screenshotUrl,
+  downloads: dashboards.downloads,
+  ratingAvg: dashboards.ratingAvg,
+  ratingCount: dashboards.ratingCount,
+  createdAt: dashboards.createdAt,
+  updatedAt: dashboards.updatedAt,
+  authorName: users.name,
+  authorUsername: users.username,
+  authorImage: users.image,
+};
+
+export type ListParams = {
+  q?: string;
+  tag?: string;
+  integration?: string;
+  quality?: QualityBand;
+  sort?: Sort;
+  page?: number;
+  authorId?: string;
+};
+
+function listWhere({ q, tag, integration, quality, authorId }: ListParams): SQL {
+  const conds: SQL[] = [eq(dashboards.isPublished, true)];
+  if (q?.trim()) conds.push(sql`${dashboards.search} @@ plainto_tsquery('simple', ${q.trim()})`);
+  if (tag) conds.push(arrayContains(dashboards.tags, [tag]));
+  if (integration) conds.push(arrayContains(dashboards.integrations, [integration]));
+  if (authorId) conds.push(eq(dashboards.authorId, authorId));
+  if (quality === "good") conds.push(gte(dashboards.qualityScore, 80));
+  if (quality === "fair") conds.push(and(gte(dashboards.qualityScore, 50), lt(dashboards.qualityScore, 80))!);
+  if (quality === "poor") conds.push(lt(dashboards.qualityScore, 50));
+  if (quality === "unknown") conds.push(isNull(dashboards.qualityScore));
+  return and(...conds)!;
+}
+
+function orderBy(sort: Sort): SQL[] {
+  // id desc is the tie-breaker so paging stays stable.
+  switch (sort) {
+    case "newest":
+      return [desc(dashboards.createdAt), desc(dashboards.id)];
+    case "rating":
+      return [sql`${dashboards.ratingAvg} desc nulls last`, desc(dashboards.ratingCount), desc(dashboards.id)];
+    case "source":
+      return [desc(dashboards.sourceDownloads), desc(dashboards.id)];
+    default:
+      return [desc(dashboards.downloads), desc(dashboards.sourceDownloads), desc(dashboards.id)];
+  }
+}
+
+export async function listDashboards(params: ListParams): Promise<{ items: DashboardListItem[]; total: number; page: number; pages: number }> {
+  const where = listWhere(params);
+  const page = Math.max(1, params.page ?? 1);
+
+  const [items, [totals]] = await Promise.all([
+    db
+      .select(listColumns)
+      .from(dashboards)
+      .leftJoin(users, eq(dashboards.authorId, users.id))
+      .where(where)
+      .orderBy(...orderBy(params.sort ?? "downloads"))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+    db.select({ n: count() }).from(dashboards).where(where),
+  ]);
+
+  const total = totals?.n ?? 0;
+  return { items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+}
+
+/**
+ * Widget layouts of each dashboard's latest revision, for the LayoutSketch fallback.
+ * Trimmed in SQL because full dashboard_json averages ~76 KB and a grid needs 24 of them.
+ */
+export async function getSketchWidgets(dashboardIds: number[]): Promise<Map<number, unknown[]>> {
+  const ids = [...new Set(dashboardIds)];
+  if (ids.length === 0) return new Map();
+  const res = await db.execute(sql`
+    select distinct on (dr.dashboard_id) dr.dashboard_id as id,
+      (select jsonb_agg(jsonb_build_object(
+          'layout', w->'layout',
+          'definition', jsonb_build_object(
+            'type', w->'definition'->>'type',
+            'widgets', (select jsonb_agg(jsonb_build_object('layout', c->'layout'))
+                        from jsonb_array_elements(coalesce(w->'definition'->'widgets', '[]'::jsonb)) c))))
+       from jsonb_array_elements(coalesce(dr.dashboard_json->'widgets', '[]'::jsonb)) w) as widgets
+    from dashboard_revisions dr
+    where dr.dashboard_id in (${sql.join(ids, sql`, `)})
+    order by dr.dashboard_id, dr.revision desc
+  `);
+  const rows = res.rows as { id: number; widgets: unknown[] | null }[];
+  return new Map(rows.map((r) => [r.id, r.widgets ?? []]));
+}
+
+export type DashboardDetail = {
+  dashboard: typeof dashboards.$inferSelect;
+  author: { id: string; name: string | null; username: string | null; image: string | null } | null;
+  latest: { revision: number; dashboardJson: Record<string, unknown>; changelog: string; createdAt: Date } | null;
+};
+
+export async function getDashboardBySlug(slug: string): Promise<DashboardDetail | null> {
+  const [row] = await db
+    .select({
+      dashboard: dashboards,
+      author: { id: users.id, name: users.name, username: users.username, image: users.image },
+    })
+    .from(dashboards)
+    .leftJoin(users, eq(dashboards.authorId, users.id))
+    .where(eq(dashboards.slug, slug))
+    .limit(1);
+  if (!row) return null;
+
+  const [latest] = await db
+    .select({
+      revision: dashboardRevisions.revision,
+      dashboardJson: dashboardRevisions.dashboardJson,
+      changelog: dashboardRevisions.changelog,
+      createdAt: dashboardRevisions.createdAt,
+    })
+    .from(dashboardRevisions)
+    .where(eq(dashboardRevisions.dashboardId, row.dashboard.id))
+    .orderBy(desc(dashboardRevisions.revision))
+    .limit(1);
+
+  return { dashboard: row.dashboard, author: row.author?.id ? row.author : null, latest: latest ?? null };
+}
+
+export async function listRevisions(dashboardId: number) {
+  return db
+    .select({
+      revision: dashboardRevisions.revision,
+      changelog: dashboardRevisions.changelog,
+      createdAt: dashboardRevisions.createdAt,
+      authorUsername: users.username,
+    })
+    .from(dashboardRevisions)
+    .leftJoin(users, eq(dashboardRevisions.createdBy, users.id))
+    .where(eq(dashboardRevisions.dashboardId, dashboardId))
+    .orderBy(desc(dashboardRevisions.revision));
+}
+
+/** Dashboard JSON of one revision, or the latest when `revision` is undefined. */
+export async function getRevisionJson(dashboardId: number, revision?: number) {
+  const where = revision
+    ? and(eq(dashboardRevisions.dashboardId, dashboardId), eq(dashboardRevisions.revision, revision))!
+    : eq(dashboardRevisions.dashboardId, dashboardId);
+  const [row] = await db
+    .select({ revision: dashboardRevisions.revision, dashboardJson: dashboardRevisions.dashboardJson })
+    .from(dashboardRevisions)
+    .where(where)
+    .orderBy(desc(dashboardRevisions.revision))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getUserRating(dashboardId: number, userId: string) {
+  const [row] = await db
+    .select({ stars: ratings.stars })
+    .from(ratings)
+    .where(and(eq(ratings.dashboardId, dashboardId), eq(ratings.userId, userId)))
+    .limit(1);
+  return row?.stars ?? null;
+}
+
+export async function getUserByUsername(username: string) {
+  const [row] = await db
+    .select({ id: users.id, name: users.name, username: users.username, image: users.image, createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.username, username))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Dashboards created by a user in the last hour — the upload rate limit. */
+export async function countRecentUploads(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(dashboards)
+    .where(and(eq(dashboards.authorId, userId), gte(dashboards.createdAt, new Date(Date.now() - 3600_000)))!);
+  return row?.n ?? 0;
+}
+
+export type IntegrationCount = { name: string; count: number };
+
+export async function listIntegrations(limit = 60): Promise<IntegrationCount[]> {
+  const res = await db.execute(sql`
+    select i as name, count(*)::int as count
+    from dashboards d, unnest(d.integrations) i
+    where d.is_published
+    group by i
+    order by count(*) desc, i asc
+    limit ${limit}
+  `);
+  return res.rows as IntegrationCount[];
+}
+
+export async function getHomeData() {
+  const [[totals], popular, recent, integrations] = await Promise.all([
+    db.select({ n: count() }).from(dashboards).where(eq(dashboards.isPublished, true)),
+    listDashboards({ sort: "downloads" }),
+    listDashboards({ sort: "newest" }),
+    listIntegrations(12),
+  ]);
+  return {
+    total: totals?.n ?? 0,
+    popular: popular.items.slice(0, 12),
+    recent: recent.items.slice(0, 12),
+    integrations,
+  };
+}
+
+export type { ConversionSummary };

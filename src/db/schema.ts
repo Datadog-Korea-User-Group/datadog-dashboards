@@ -78,8 +78,10 @@ export const dashboards = pgTable("dashboards", {
   isPublished: boolean("is_published").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // array_to_tsvector, not to_tsvector(array_to_string(...)): array_to_string is only
+  // STABLE, and Postgres rejects a non-IMMUTABLE expression in a generated column.
   search: tsvector("search").generatedAlwaysAs(
-    sql`setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B') || setweight(to_tsvector('simple', array_to_string(tags, ' ')), 'C')`,
+    sql`setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B') || setweight(array_to_tsvector(tags), 'C')`,
   ),
 }, (t) => [
   index("dashboards_search_idx").using("gin", t.search),
