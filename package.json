@@ -18,7 +18,8 @@
     "migrate:fetch": "tsx scripts/migrate-grafana/fetch.ts",
     "migrate:convert": "tsx scripts/migrate-grafana/convert-all.ts",
     "migrate:one": "tsx scripts/migrate-grafana/convert.ts",
-    "migrate:dd": "tsx scripts/migrate-grafana/dd-pipeline.ts"
+    "migrate:dd": "tsx scripts/migrate-grafana/dd-pipeline.ts",
+    "preview:run": "tsx scripts/preview-local.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

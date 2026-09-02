@@ -33,6 +33,8 @@ services:
       SITE_URL: ${SITE_URL}
       # Comma-separated GitHub logins that get the admin role (keep it in .env, never in the repo)
       ADMIN_GITHUB_LOGINS: ${ADMIN_GITHUB_LOGINS:-}
+      # Bearer token for the admin API used by the local preview runner (pnpm preview:run); empty disables it
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
       # Comments/reactions via GitHub Discussions (giscus). IDs are public identifiers.
       GISCUS_REPO: ${GISCUS_REPO:-Datadog-Korea-User-Group/datadog-dashboards}
       GISCUS_REPO_ID: ${GISCUS_REPO_ID:-R_kgDOULXkRA}
@@ -41,37 +43,12 @@ services:
     volumes:
       # Persist only optimized images across deploys; the data cache must not outlive a build.
       - image-cache:/app/.next/cache/images
-      # Screenshots of uploaded dashboards (written by the worker and by manual uploads); migrated ones ship in the image
+      # Screenshots of uploaded dashboards (manual uploads and the admin preview API); migrated ones ship in the image
       - uploads:/app/public/screenshots/uploads
     ports:
       - "127.0.0.1:3010:3000"
     labels:
       com.datadoghq.ad.logs: '[{"source":"nodejs","service":"datadog-dashboards"}]'
-
-  # Generates previews for uploaded dashboards: creates them in the community Datadog org, feeds dummy metrics
-  # through a Datadog Agent's DogStatsD, and captures a screenshot with Playwright.
-  worker:
-    image: ghcr.io/datadog-korea-user-group/datadog-dashboards-worker:${IMAGE_TAG:-latest}
-    build:
-      context: .
-      target: worker
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://dashboards:${POSTGRES_PASSWORD:-dashboards}@db:5432/dashboards
-      DD_SITE: ${DD_SITE:-datadoghq.com}
-      DD_API_KEY: ${DD_API_KEY}
-      DD_APP_KEY: ${DD_APP_KEY}
-      DOGSTATSD_HOST: ${DOGSTATSD_HOST:-host.docker.internal}
-      DOGSTATSD_PORT: ${DOGSTATSD_PORT:-8125}
-      PREVIEW_FEED_MINUTES: ${PREVIEW_FEED_MINUTES:-10}
-      PREVIEW_MAX_SERIES: ${PREVIEW_MAX_SERIES:-3000}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - uploads:/app/public/screenshots/uploads
 
 volumes:
   db-data:
