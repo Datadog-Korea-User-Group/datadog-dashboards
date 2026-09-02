@@ -35,11 +35,6 @@ services:
       ADMIN_GITHUB_LOGINS: ${ADMIN_GITHUB_LOGINS:-}
       # Bearer token for the admin API used by the local preview runner (pnpm preview:run); empty disables it
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
-      # Comments/reactions via GitHub Discussions (giscus). IDs are public identifiers.
-      GISCUS_REPO: ${GISCUS_REPO:-Datadog-Korea-User-Group/datadog-dashboards}
-      GISCUS_REPO_ID: ${GISCUS_REPO_ID:-R_kgDOULXkRA}
-      GISCUS_CATEGORY: ${GISCUS_CATEGORY:-Announcements}
-      GISCUS_CATEGORY_ID: ${GISCUS_CATEGORY_ID:-DIC_kwDOULXkRM4DEsH0}
     volumes:
       # Persist only optimized images across deploys; the data cache must not outlive a build.
       - image-cache:/app/.next/cache/images
