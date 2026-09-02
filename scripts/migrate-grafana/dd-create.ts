@@ -12,14 +12,15 @@ export const LIST_NAME = "Community imports (grafana.com)";
 export function loadState(): CreatedState { return existsSync(STATE_FILE) ? (JSON.parse(readFileSync(STATE_FILE, "utf8")) as CreatedState) : {}; }
 export function saveState(s: CreatedState) { writeFileSync(STATE_FILE, JSON.stringify(s, null, 2)); }
 
-let listId: number | null = null;
-export async function ensureList(): Promise<number> {
-  if (listId) return listId;
+const listIds = new Map<string, number>();
+export async function ensureList(name: string = LIST_NAME): Promise<number> {
+  const cached = listIds.get(name);
+  if (cached) return cached;
   const lists = await dd<{ dashboard_lists: { id: number; name: string }[] }>("GET", "/v1/dashboard/lists/manual");
-  const found = lists.dashboard_lists.find((l) => l.name === LIST_NAME);
-  if (found) return (listId = found.id);
-  const created = await dd<{ id: number }>("POST", "/v1/dashboard/lists/manual", { name: LIST_NAME });
-  return (listId = created.id);
+  const found = lists.dashboard_lists.find((l) => l.name === name);
+  const id = found ? found.id : (await dd<{ id: number }>("POST", "/v1/dashboard/lists/manual", { name })).id;
+  listIds.set(name, id);
+  return id;
 }
 
 export async function createOrUpdate(sourceId: number, state: CreatedState): Promise<{ ddId: string; url: string; created: boolean }> {

@@ -27,7 +27,15 @@ export async function unshare(token: string): Promise<void> {
 export async function captureOne(browser: Browser, sourceId: number, ddId: string, minutes: number, log: (s: string) => void): Promise<string> {
   mkdirSync(SHOT_DIR, { recursive: true });
   const out = `${SHOT_DIR}/${sourceId}.webp`;
-  const s = await share(ddId);
+  await captureToFile(browser, ddId, minutes, out);
+  log(`[${sourceId}] captured ${out}`);
+  return out;
+}
+
+/** Shares the dashboard publicly, screenshots it at 1920x1080 into `out` (webp), then removes the share. */
+export async function captureToFile(browser: Browser, ddId: string, minutes: number, out: string): Promise<void> {
+  const liveSpan = minutes <= 5 ? "5m" : minutes <= 10 ? "10m" : minutes <= 15 ? "15m" : minutes <= 30 ? "30m" : "1h";
+  const s = await share(ddId, liveSpan);
   try {
     const to = Date.now(), from = to - minutes * 60_000;
     const url = `${s.public_url}${s.public_url.includes("?") ? "&" : "?"}from_ts=${from}&to_ts=${to}`;
@@ -44,8 +52,6 @@ export async function captureOne(browser: Browser, sourceId: number, ddId: strin
   } finally {
     await unshare(s.token);
   }
-  log(`[${sourceId}] captured ${out}`);
-  return out;
 }
 
 export async function captureMany(ids: number[], opts: { minutes: number; concurrency: number; force?: boolean; log?: (s: string) => void }): Promise<{ ok: number[]; failed: { id: number; error: string }[] }> {

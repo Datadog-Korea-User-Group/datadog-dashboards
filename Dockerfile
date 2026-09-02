@@ -13,6 +13,19 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
+# Preview worker: Playwright image (Chromium + deps preinstalled; version must match package.json's playwright)
+FROM mcr.microsoft.com/playwright:v1.62.1-noble AS worker
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY tsconfig.json ./
+COPY scripts ./scripts
+COPY src/db ./src/db
+ENV NODE_ENV=production SCREENSHOT_DIR=/app/public/screenshots/uploads
+RUN mkdir -p /app/public/screenshots/uploads
+CMD ["pnpm", "exec", "tsx", "scripts/preview-worker.ts"]
+
 FROM base AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
