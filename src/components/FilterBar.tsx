@@ -8,8 +8,8 @@ import { QUALITY_BANDS, SORTS, type QualityBand, type Sort } from "@/lib/list-pa
 import type { IntegrationCount } from "@/db/queries";
 
 /**
- * Selects navigate on change; the search box still submits the form (Enter or Apply).
- * Both paths serialize the same form, so each keeps the other's current values, and
+ * One form, two visual groups: search submits, filters navigate on change. The selects
+ * stay inside the form so a search submit still carries them (and vice versa), and
  * `page` is dropped either way because it is not a field.
  */
 export function FilterBar({
@@ -44,63 +44,78 @@ export function FilterBar({
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); apply(e.currentTarget); }}
-      className={`card p-3 flex flex-wrap items-end gap-3 transition-opacity ${pending ? "opacity-60" : ""}`}
+      className={`card p-3 flex flex-col md:flex-row md:items-end gap-4 transition-opacity ${pending ? "opacity-60" : ""}`}
     >
       {tag ? <input type="hidden" name="tag" value={tag} /> : null}
 
+      {/* Search: needs an explicit submit. Enter in the input submits the same form. */}
       <label className="flex-1 min-w-56 flex flex-col gap-1">
         <span className="text-xs font-semibold muted">{t("search")}</span>
-        <span className="relative block">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-          <input name="q" defaultValue={q ?? ""} className="input w-full pl-8" placeholder={t("search")} />
+        <span className="flex">
+          <span className="relative flex-1">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              name="q"
+              defaultValue={q ?? ""}
+              className="input w-full pl-8 rounded-r-none border-r-0"
+              placeholder={t("search")}
+            />
+          </span>
+          <button type="submit" className="btn btn-primary rounded-l-none">{t("search")}</button>
         </span>
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-semibold muted">{t("filterIntegration")}</span>
-        <select
-          name="integration"
-          defaultValue={integration ?? ""}
-          onChange={(e) => apply(e.currentTarget.form!)}
-          className="input min-w-40"
-        >
-          <option value="">{t("any")}</option>
-          {integrations.map((i) => (
-            <option key={i.name} value={i.name}>{i.name} ({i.count})</option>
-          ))}
-        </select>
-      </label>
+      <div className="hidden md:block self-stretch w-px bg-border" aria-hidden="true" />
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-semibold muted">{t("filterQuality")}</span>
-        <select
-          name="quality"
-          defaultValue={quality ?? ""}
-          onChange={(e) => apply(e.currentTarget.form!)}
-          className="input min-w-32"
-        >
-          <option value="">{t("any")}</option>
-          {QUALITY_BANDS.map((b) => (
-            <option key={b} value={b}>{tq(b)}</option>
-          ))}
-        </select>
-      </label>
+      {/* Filters: navigate on change, no button. */}
+      <div className="flex flex-col gap-1">
+        <span className="text-xs muted">{t("filtersHint")}</span>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold muted">{t("filterIntegration")}</span>
+            <select
+              name="integration"
+              defaultValue={integration ?? ""}
+              onChange={(e) => apply(e.currentTarget.form!)}
+              className="input min-w-40"
+            >
+              <option value="">{t("any")}</option>
+              {integrations.map((i) => (
+                <option key={i.name} value={i.name}>{i.name} ({i.count})</option>
+              ))}
+            </select>
+          </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-semibold muted">{t("sort")}</span>
-        <select
-          name="sort"
-          defaultValue={sort}
-          onChange={(e) => apply(e.currentTarget.form!)}
-          className="input min-w-44"
-        >
-          {SORTS.map((s) => (
-            <option key={s} value={s}>{sortLabel[s]}</option>
-          ))}
-        </select>
-      </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold muted">{t("filterQuality")}</span>
+            <select
+              name="quality"
+              defaultValue={quality ?? ""}
+              onChange={(e) => apply(e.currentTarget.form!)}
+              className="input min-w-32"
+            >
+              <option value="">{t("any")}</option>
+              {QUALITY_BANDS.map((b) => (
+                <option key={b} value={b}>{tq(b)}</option>
+              ))}
+            </select>
+          </label>
 
-      <button type="submit" className="btn btn-primary">{t("apply")}</button>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold muted">{t("sort")}</span>
+            <select
+              name="sort"
+              defaultValue={sort}
+              onChange={(e) => apply(e.currentTarget.form!)}
+              className="input min-w-44"
+            >
+              {SORTS.map((s) => (
+                <option key={s} value={s}>{sortLabel[s]}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
     </form>
   );
 }

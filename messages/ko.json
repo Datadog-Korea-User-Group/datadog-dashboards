@@ -43,8 +43,8 @@
     "next": "다음",
     "search": "검색",
     "any": "전체",
-    "apply": "적용",
-    "sortViews": "조회수 많은 순"
+    "sortViews": "조회수 많은 순",
+    "filtersHint": "필터는 바로 적용됩니다"
   },
   "detail": {
     "download": "JSON 다운로드",

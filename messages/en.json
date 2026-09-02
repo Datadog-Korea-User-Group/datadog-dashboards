@@ -43,8 +43,8 @@
     "next": "Next",
     "search": "Search",
     "any": "Any",
-    "apply": "Apply",
-    "sortViews": "Most viewed"
+    "sortViews": "Most viewed",
+    "filtersHint": "Filters apply instantly"
   },
   "detail": {
     "download": "Download JSON",
