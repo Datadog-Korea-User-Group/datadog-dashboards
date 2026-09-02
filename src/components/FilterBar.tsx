@@ -44,12 +44,12 @@ export function FilterBar({
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); apply(e.currentTarget); }}
-      className={`card p-3 flex flex-col md:flex-row md:items-end gap-4 transition-opacity ${pending ? "opacity-60" : ""}`}
+      className={`card p-3 flex flex-col gap-3 transition-opacity ${pending ? "opacity-60" : ""}`}
     >
       {tag ? <input type="hidden" name="tag" value={tag} /> : null}
 
-      {/* Search: needs an explicit submit. Enter in the input submits the same form. */}
-      <label className="flex-1 min-w-56 flex flex-col gap-1">
+      {/* Search row: full width, needs an explicit submit. Enter in the input submits the same form. */}
+      <label className="flex flex-col gap-1">
         <span className="text-xs font-semibold muted">{t("search")}</span>
         <span className="flex">
           <span className="relative flex-1">
@@ -65,19 +65,19 @@ export function FilterBar({
         </span>
       </label>
 
-      <div className="hidden md:block self-stretch w-px bg-border" aria-hidden="true" />
+      <div className="h-px bg-border" aria-hidden="true" />
 
-      {/* Filters: navigate on change, no button. */}
+      {/* Filters row: navigate on change, no button. */}
       <div className="flex flex-col gap-1">
         <span className="text-xs muted">{t("filtersHint")}</span>
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold muted">{t("filterIntegration")}</span>
             <select
               name="integration"
               defaultValue={integration ?? ""}
               onChange={(e) => apply(e.currentTarget.form!)}
-              className="input min-w-40"
+              className="input w-full"
             >
               <option value="">{t("any")}</option>
               {integrations.map((i) => (
@@ -92,7 +92,7 @@ export function FilterBar({
               name="quality"
               defaultValue={quality ?? ""}
               onChange={(e) => apply(e.currentTarget.form!)}
-              className="input min-w-32"
+              className="input w-full"
             >
               <option value="">{t("any")}</option>
               {QUALITY_BANDS.map((b) => (
@@ -107,7 +107,7 @@ export function FilterBar({
               name="sort"
               defaultValue={sort}
               onChange={(e) => apply(e.currentTarget.form!)}
-              className="input min-w-44"
+              className="input w-full"
             >
               {SORTS.map((s) => (
                 <option key={s} value={s}>{sortLabel[s]}</option>
