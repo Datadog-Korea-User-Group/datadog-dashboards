@@ -15,8 +15,9 @@ export async function listShares(): Promise<Share[]> {
   return r.shared_dashboards ?? [];
 }
 
-export async function share(dashboardId: string): Promise<Share> {
-  return dd<Share>("POST", "/v1/dashboard/public", { dashboard_id: dashboardId, dashboard_type: "custom_timeboard", share_type: "open" });
+export async function share(dashboardId: string, liveSpan = "15m"): Promise<Share> {
+  // global_time pins the shared dashboard's default range so graphs span exactly the period we fed
+  return dd<Share>("POST", "/v1/dashboard/public", { dashboard_id: dashboardId, dashboard_type: "custom_timeboard", share_type: "open", global_time: { live_span: liveSpan } });
 }
 
 export async function unshare(token: string): Promise<void> {
