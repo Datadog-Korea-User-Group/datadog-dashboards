@@ -49,8 +49,10 @@ export async function captureToFile(browser: Browser, ddId: string, minutes: num
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 810 }, deviceScaleFactor: 4 / 3, colorScheme: "light" });
     const page = await ctx.newPage();
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 }).catch(() => page.waitForTimeout(5_000));
-      await page.waitForTimeout(4_000);
+      // Live dashboards keep polling, so "networkidle" is best effort with a short cap; the settle wait covers rendering.
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      await page.waitForLoadState("networkidle", { timeout: 25_000 }).catch(() => undefined);
+      await page.waitForTimeout(5_000);
       const png = await page.screenshot({ type: "png", fullPage: false });
       await sharp(png).resize(1920, 1080, { fit: "cover", position: "top" }).webp({ quality: 75 }).toFile(out);
     } finally {
