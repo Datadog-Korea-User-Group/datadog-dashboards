@@ -111,7 +111,6 @@
     "joined": "{date} 가입"
   },
   "footer": {
-    "builtBy": "Datadog Korea User Group 제작",
-    "source": "GitHub 소스"
+    "builtBy": "Datadog Korea User Group 제작"
   }
 }

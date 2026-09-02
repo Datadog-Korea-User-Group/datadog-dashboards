@@ -111,7 +111,6 @@
     "joined": "Joined {date}"
   },
   "footer": {
-    "builtBy": "Built by Datadog Korea User Group",
-    "source": "Source on GitHub"
+    "builtBy": "Built by Datadog Korea User Group"
   }
 }
