@@ -18,6 +18,7 @@ services:
 
   web:
     image: ghcr.io/datadog-korea-user-group/datadog-dashboards:${IMAGE_TAG:-latest}
+    build: .   # `docker compose build` from a checkout when the registry image is not reachable
     restart: unless-stopped
     depends_on:
       db:
