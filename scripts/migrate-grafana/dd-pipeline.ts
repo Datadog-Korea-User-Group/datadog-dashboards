@@ -1,11 +1,12 @@
 // Wave orchestrator: for each batch of converted dashboards -> create in Datadog -> feed dummy metrics -> wait -> capture -> stop feed.
 //   pnpm migrate:dd [--batch 50] [--feed-minutes 15] [--max-waves N] [--concurrency 3] [--max-series 30000]
 import "../env";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { CatalogItem } from "./fetch";
 import { createOrUpdate, loadState } from "./dd-create";
-import { Feeder, enablePercentiles, loadSpecs } from "./dd-feed";
+import { Feeder, enablePercentiles, loadSpecs, type SeriesSpec } from "./dd-feed";
+import { execSync } from "node:child_process";
 import { captureMany, cleanupShares, SHOT_DIR } from "./dd-capture";
 
 const PIPE_STATE = ".cache/dd-state.json";
@@ -18,6 +19,9 @@ const feedMinutes = Number(flag("feed-minutes") ?? 18);
 const maxWaves = Number(flag("max-waves") ?? Infinity);
 const concurrency = Number(flag("concurrency") ?? 3);
 const maxSeries = Number(flag("max-series") ?? 30000);
+// --feed-ssh <ssh host>: run the feeder on that host (next to the Agent) in a node container instead of sending UDP from here
+const feedSsh = flag("feed-ssh");
+const feedSshDir = flag("feed-ssh-dir") ?? "~/dd-feed";
 // screenshots captured before this time count as missing (re-create + re-capture after a converter/capture fix)
 const staleBefore = flag("stale-before") ? Date.parse(flag("stale-before")!) : 0;
 const hasShot = (id: number) => { const f = `${SHOT_DIR}/${id}.webp`; return existsSync(f) && statSync(f).mtimeMs >= staleBefore; };
@@ -26,9 +30,26 @@ const log = (s: string) => process.stderr.write(`${new Date().toISOString()} ${s
 function loadPipe(): PipeState { return existsSync(PIPE_STATE) ? (JSON.parse(readFileSync(PIPE_STATE, "utf8")) as PipeState) : { waves: [], done: {} }; }
 function savePipe(s: PipeState) { writeFileSync(PIPE_STATE, JSON.stringify(s, null, 2)); }
 
+const SSH_OPTS = "-o BatchMode=yes -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=/tmp/dd-feed-cm -o ControlPersist=1800";
+/** Same start/stop contract as Feeder, but the series are fed from a container on an SSH host that can reach the Agent. */
+class RemoteFeeder {
+  constructor(private sshHost: string, private dir: string, private specs: SeriesSpec[], private minutes: number) {}
+  start(_intervalSec: number) {
+    mkdirSync(".cache/remote-feed", { recursive: true });
+    execSync("pnpm exec esbuild scripts/migrate-grafana/remote-feed-entry.ts --bundle --platform=node --format=cjs --log-level=error --outfile=.cache/remote-feed/feeder.js", { stdio: "inherit" });
+    writeFileSync(".cache/remote-feed/specs.json", JSON.stringify(this.specs));
+    const remote = `mkdir -p ${this.dir} && tar -C ${this.dir} -xf - && docker rm -f dd-feeder >/dev/null 2>&1; ` +
+      `docker run -d --rm --name dd-feeder --network host -v "$(cd ${this.dir} && pwd)":/f:ro node:22-alpine node /f/feeder.js /f/specs.json ${this.minutes}`;
+    execSync(`tar -C .cache/remote-feed -cf - feeder.js specs.json | ssh ${SSH_OPTS} ${this.sshHost} '${remote}'`, { stdio: ["ignore", "ignore", "inherit"] });
+  }
+  stop() {
+    try { execSync(`ssh ${SSH_OPTS} ${this.sshHost} 'docker rm -f dd-feeder'`, { stdio: "ignore" }); } catch { /* container already exited */ }
+  }
+}
+
 async function main() {
   const host = process.env.DOGSTATSD_HOST; const port = Number(process.env.DOGSTATSD_PORT ?? 8125);
-  if (!host) throw new Error("DOGSTATSD_HOST not set");
+  if (!host && !feedSsh) throw new Error("DOGSTATSD_HOST not set (or use --feed-ssh <host>)");
   const catalog = JSON.parse(readFileSync(".cache/grafana/catalog.json", "utf8")) as CatalogItem[];
   const pipe = loadPipe();
   for (let w = 0; w < maxWaves; w++) {
@@ -60,7 +81,7 @@ async function main() {
     // 2) feed dummy metrics
     const specs = loadSpecs(created, maxSeries);
     log(`feeding ${specs.length} series to ${host}:${port} for ${feedMinutes} min`);
-    const feeder = new Feeder(host, port, specs);
+    const feeder = feedSsh ? new RemoteFeeder(feedSsh, feedSshDir, specs, feedMinutes + 3) : new Feeder(host!, port, specs);
     feeder.start(10);
     try {
       await sleep(60_000);
