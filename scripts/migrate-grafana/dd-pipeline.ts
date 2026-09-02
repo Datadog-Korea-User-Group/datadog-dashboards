@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { CatalogItem } from "./fetch";
 import { createOrUpdate, loadState } from "./dd-create";
-import { Feeder, loadSpecs } from "./dd-feed";
+import { Feeder, enablePercentiles, loadSpecs } from "./dd-feed";
 import { captureMany, cleanupShares, SHOT_DIR } from "./dd-capture";
 
 const PIPE_STATE = ".cache/dd-state.json";
@@ -14,7 +14,7 @@ type PipeState = { waves: { n: number; ids: number[]; startedAt: string; finishe
 const argv = process.argv.slice(2);
 const flag = (n: string) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : undefined; };
 const batch = Number(flag("batch") ?? 50);
-const feedMinutes = Number(flag("feed-minutes") ?? 15);
+const feedMinutes = Number(flag("feed-minutes") ?? 18);
 const maxWaves = Number(flag("max-waves") ?? Infinity);
 const concurrency = Number(flag("concurrency") ?? 3);
 const maxSeries = Number(flag("max-series") ?? 30000);
@@ -60,9 +60,11 @@ async function main() {
     const feeder = new Feeder(host, port, specs);
     feeder.start(10);
     try {
-      await sleep(feedMinutes * 60_000);
-      // 3) capture (feed keeps running so the last 15 minutes are populated)
-      const r = await captureMany(created, { minutes: feedMinutes, concurrency, log });
+      await sleep(60_000);
+      await enablePercentiles(specs, log);
+      await sleep(Math.max(0, feedMinutes - 1) * 60_000);
+      // 3) capture a window that lies fully inside the feed period (feed keeps running meanwhile)
+      const r = await captureMany(created, { minutes: Math.max(5, feedMinutes - 2), concurrency, log });
       wave.captured = r.ok.length; wave.failed += r.failed.length;
       for (const id of r.ok) pipe.done[id] = { ...pipe.done[id], capturedAt: new Date().toISOString(), error: undefined };
       for (const f of r.failed) pipe.done[f.id] = { ...pipe.done[f.id], error: f.error };
