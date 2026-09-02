@@ -2,7 +2,7 @@ import type { TranslationResult } from "./types";
 
 // Datadog metric query: agg:metric{filters} by {tags}.modifier(...)...
 const QUERY_RE = /^(avg|sum|min|max|p(?:50|75|90|95|99|999))\s*:\s*([a-zA-Z][a-zA-Z0-9_.]{0,199})\s*\{([^{}]*)\}(?:\s+by\s+\{([^{}]*)\})?((?:\s*\.(?:as_rate\(\)|as_count\(\)|rollup\(\s*(?:avg|sum|min|max|count)\s*(?:,\s*\d+\s*)?\)|fill\(\s*(?:null|zero|linear|last)\s*(?:,\s*\d+\s*)?\)))*)\s*$/;
-const FILTER_RE = /^(?:\*|!?\$[A-Za-z_][A-Za-z0-9_]*|!?[A-Za-z_][A-Za-z0-9_.\/-]*\s*:\s*[^,]+|(?:NOT\s+)?[A-Za-z_][A-Za-z0-9_.\/-]*\s+IN\s*\([^()]*\))$/i;
+const FILTER_RE = /^(?:\*|!?\$[A-Za-z_][A-Za-z0-9_]*|!?[A-Za-z_][A-Za-z0-9_.\/-]*\s*:\s*[^,]+|(?:NOT\s+)?[A-Za-z_][A-Za-z0-9_.\/-]*\s+(?:NOT\s+)?IN\s*\([^()]*\))$/i;
 const TAG_RE = /^[A-Za-z_][A-Za-z0-9_.\/-]*$/;
 const ALLOWED_FN = new Set([
   "abs", "log2", "log10", "cumsum", "integral", "derivative", "diff", "timeshift", "default_zero", "count_not_null", "count_nonzero",
@@ -16,8 +16,13 @@ export interface ValidationIssue { id: string; message: string }
 /** Datadog rejects `IN (...)` clauses mixed with comma separators: join such filter lists with AND instead. */
 export function normalizeQueryFilters(q: string): string {
   return q.replace(/\{([^{}]*)\}/, (whole, inner: string) => {
-    if (!/\bIN\s*\(/i.test(inner) || !inner.includes(",")) return whole;
-    const parts = splitTopLevel(inner).map((s) => s.trim()).filter(Boolean);
+    if (!/\bIN\s*\(/i.test(inner)) return whole;
+    // Datadog spells negated membership `key NOT IN (...)`, not `NOT key IN (...)`
+    let fixed = inner.replace(/\bNOT\s+([A-Za-z_][A-Za-z0-9_.\/-]*)\s+IN\s*\(/gi, "$1 NOT IN (");
+    // Tag values only allow [A-Za-z0-9_:./-]; Datadog's intake turns anything else into '_' (e.g. <none> -> _none_)
+    fixed = fixed.replace(/IN\s*\(([^()]*)\)/gi, (_, list: string) => `IN (${list.split(",").map((v) => v.trim().toLowerCase().replace(/[^a-z0-9_:.\/*-]/g, "_")).join(",")})`);
+    if (!fixed.includes(",")) return `{${fixed}}`;
+    const parts = (/\bAND\b/.test(fixed) ? fixed.split(/\s+AND\s+/) : splitTopLevel(fixed)).map((s) => s.trim()).filter(Boolean);
     return `{${parts.join(" AND ")}}`;
   });
 }

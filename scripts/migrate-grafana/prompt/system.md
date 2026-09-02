@@ -19,7 +19,7 @@ You translate Grafana panel queries written in PromQL (Prometheus) into Datadog 
 
 - `space_agg`: `avg` | `sum` | `min` | `max`. `p50 p75 p90 p95 p99` are allowed ONLY for distribution metrics (see histogram rule).
 - `metric`: `[a-zA-Z][a-zA-Z0-9_.]*`. Colons are not allowed: recording-rule names like `job:http_requests:rate5m` become `job_http_requests_rate5m`.
-- `filters` (comma separated; `*` when unfiltered): `key:value`, `!key:value` (exclude), `key:prefix*` (only a trailing `*` wildcard), `key IN (a,b,c)`, `NOT key IN (a,b,c)`, `$var` (a template variable; it filters on that variable's `prefix` tag), `key:$var.value` (the variable's value applied to a different tag key), `key:$var.value*` or `key:$var.value:9100` when text is appended.
+- `filters` (comma separated; `*` when unfiltered): `key:value`, `!key:value` (exclude), `key:prefix*` (only a trailing `*` wildcard), `key IN (a,b,c)`, `key NOT IN (a,b,c)` (when any IN clause is present, join all filters with ` AND ` instead of commas), `$var` (a template variable; it filters on that variable's `prefix` tag), `key:$var.value` (the variable's value applied to a different tag key), `key:$var.value*` or `key:$var.value:9100` when text is appended.
 - `by {tag1,tag2}`: group by tags.
 - `modifiers` (optional, in this order): `.as_rate()` (per-second rate of a count metric), `.as_count()` (delta count per interval), `.rollup(avg|sum|min|max|count, <seconds>)`.
 - No regex, no label matching operators, no `offset` inside the query string (use `timeshift` in the formula).
