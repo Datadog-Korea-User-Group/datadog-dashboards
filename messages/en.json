@@ -71,7 +71,7 @@
     "publish": "Publish",
     "tags": "Tags",
     "integrations": "Integrations",
-    "created": "Created {date}",
+    "created": "Created <d></d>",
     "signInToRate": "Sign in to rate.",
     "unpublished": "Unpublished",
     "views": "{count} views",
@@ -111,7 +111,7 @@
   },
   "user": {
     "dashboards": "Dashboards by {name}",
-    "joined": "Joined {date}"
+    "joined": "Joined <d></d>"
   },
   "footer": {
     "builtBy": "Built by Datadog Korea User Group"

@@ -1,15 +1,15 @@
 import Image from "next/image";
 import { Download, Eye } from "lucide-react";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import type { DashboardListItem } from "@/db/queries";
+import { LocalTime } from "./LocalTime";
 import { QualityBadge } from "./QualityBadge";
 
 /** Datadog "Dashboard List" table: Name · Popularity · Author · Quality · Modified. */
 export async function DashboardTable({ items }: { items: DashboardListItem[] }) {
   const t = await getTranslations("list");
   const td = await getTranslations("detail");
-  const format = await getFormatter();
   const max = Math.max(1, ...items.map((i) => i.downloads));
 
   return (
@@ -69,7 +69,7 @@ export async function DashboardTable({ items }: { items: DashboardListItem[] }) 
               </td>
               <td><QualityBadge score={d.qualityScore} /></td>
               <td className="text-xs muted whitespace-nowrap">
-                {format.dateTime(d.updatedAt, { year: "numeric", month: "short", day: "numeric" })}
+                <LocalTime value={d.updatedAt} mode="date" />
               </td>
             </tr>
           ))}

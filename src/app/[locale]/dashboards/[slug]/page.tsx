@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
@@ -12,6 +12,7 @@ import { DownloadButton } from "@/components/DownloadButton";
 import { Giscus } from "@/components/Giscus";
 import { JsonViewer } from "@/components/JsonViewer";
 import { LayoutSketch } from "@/components/LayoutSketch";
+import { LocalTime } from "@/components/LocalTime";
 import { QualityBadge } from "@/components/QualityBadge";
 import { RatingStars } from "@/components/RatingStars";
 import { ViewPing } from "@/components/ViewPing";
@@ -143,7 +144,6 @@ export default async function DashboardDetailPage({
 
   const t = await getTranslations("detail");
   const tc = await getTranslations("comments");
-  const format = await getFormatter();
   const [revisions, myRating] = await Promise.all([
     listRevisions(d.id),
     session?.user?.id ? getUserRating(d.id, session.user.id) : Promise.resolve(null),
@@ -197,7 +197,7 @@ export default async function DashboardDetailPage({
             <span className="pill pill-neutral">{t("downloads", { count: d.downloads.toLocaleString() })}</span>
             <span className="pill pill-neutral">{t("views", { count: d.views.toLocaleString() })}</span>
             {latest ? <span className="pill pill-neutral">{t("revision", { n: latest.revision })}</span> : null}
-            <span className="muted">{t("created", { date: format.dateTime(d.createdAt, { dateStyle: "medium" }) })}</span>
+            <span className="muted">{t.rich("created", { d: () => <LocalTime value={d.createdAt} mode="date" /> })}</span>
             {author?.username ? (
               <Link href={`/users/${author.username}`} className="link">{author.username}</Link>
             ) : null}
@@ -274,7 +274,7 @@ export default async function DashboardDetailPage({
             {revisions.map((r) => (
               <li key={r.revision} className="flex items-center gap-3 px-3 py-2 border-b border-border last:border-0 text-xs">
                 <span className="pill pill-neutral">{t("revision", { n: r.revision })}</span>
-                <span className="muted whitespace-nowrap">{format.dateTime(r.createdAt, { dateStyle: "medium" })}</span>
+                <LocalTime value={r.createdAt} className="muted whitespace-nowrap" />
                 <span className="flex-1 truncate">{r.changelog}</span>
                 <a href={`${downloadHref}?revision=${r.revision}`} download className="link whitespace-nowrap">{t("download")}</a>
               </li>

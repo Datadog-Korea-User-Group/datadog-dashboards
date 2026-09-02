@@ -20,7 +20,7 @@ export type DashboardListItem = {
   downloads: number;
   views: number;
   sourceOrgName: string | null;
-  updatedAt: Date;
+  updatedAt: string;
   authorUsername: string | null;
   authorImage: string | null;
 };
@@ -99,7 +99,10 @@ async function queryDashboards(params: ListParams): Promise<{ items: DashboardLi
   ]);
 
   const total = totals?.n ?? 0;
-  return { items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  // ISO strings, not Date: unstable_cache round-trips this through JSON, so a Date would
+  // reach callers as a string anyway and the type would be lying.
+  const rows = items.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }));
+  return { items: rows, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
 export const DASHBOARDS_TAG = "dashboards";

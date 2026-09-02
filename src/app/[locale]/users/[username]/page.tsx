@@ -1,9 +1,10 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getUserByUsername, listDashboards, parseSort } from "@/db/queries";
 import { DashboardTable } from "@/components/DashboardTable";
+import { LocalTime } from "@/components/LocalTime";
 import { Pagination } from "@/components/Pagination";
 
 type Search = Record<string, string | string[] | undefined>;
@@ -32,7 +33,6 @@ export default async function UserPage({
 
   const t = await getTranslations("user");
   const tl = await getTranslations("list");
-  const format = await getFormatter();
 
   const sort = parseSort(one(sp.sort));
   const page = Math.max(1, Number(one(sp.page)) || 1);
@@ -47,7 +47,7 @@ export default async function UserPage({
         <div>
           <h1 className="text-xl font-bold">{user.name ?? user.username}</h1>
           <p className="text-xs muted">
-            @{user.username} · {t("joined", { date: format.dateTime(user.createdAt, { dateStyle: "medium" }) })}
+            @{user.username} · {t.rich("joined", { d: () => <LocalTime value={user.createdAt} mode="date" /> })}
           </p>
         </div>
       </header>
