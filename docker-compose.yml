@@ -31,6 +31,11 @@ services:
       AUTH_URL: ${AUTH_URL}
       AUTH_TRUST_HOST: "true"
       SITE_URL: ${SITE_URL}
+      # Comments/reactions via GitHub Discussions (giscus). IDs are public identifiers.
+      GISCUS_REPO: ${GISCUS_REPO:-Datadog-Korea-User-Group/datadog-dashboards}
+      GISCUS_REPO_ID: ${GISCUS_REPO_ID:-R_kgDOULXkRA}
+      GISCUS_CATEGORY: ${GISCUS_CATEGORY:-Announcements}
+      GISCUS_CATEGORY_ID: ${GISCUS_CATEGORY_ID:-DIC_kwDOULXkRM4DEsH0}
     volumes:
       - image-cache:/app/.next/cache
     ports:
