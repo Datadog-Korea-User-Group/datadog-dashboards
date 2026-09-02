@@ -10,8 +10,8 @@ import path from "node:path";
 import { chromium, type Browser } from "playwright";
 import { dd, DdApiError } from "./migrate-grafana/dd-api";
 import { ensureList } from "./migrate-grafana/dd-create";
-import { Feeder, enablePercentiles, seriesForDashboard } from "./migrate-grafana/dd-feed";
-import { captureToFile } from "./migrate-grafana/dd-capture";
+import { Feeder, seriesForDashboard } from "./migrate-grafana/dd-feed";
+import { captureToFile, listShares, unshare } from "./migrate-grafana/dd-capture";
 import type { DdDashboard } from "./migrate-grafana/types";
 
 type Job = { id: number; dashboardId: number; slug: string; title: string; revision: number; ddDashboardId: string | null; screenshotSource: string | null; dashboardJson: DdDashboard };
@@ -37,8 +37,22 @@ async function api<T>(method: string, p: string, body?: BodyInit, headers: Recor
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+// Widget types we let into the community org. iframe/image (and anything unknown) are dropped: the capture browser
+// would fetch arbitrary URLs and publish the result.
+const SAFE_WIDGETS = new Set(["timeseries", "query_value", "toplist", "query_table", "note", "group", "heatmap", "sunburst", "treemap", "distribution", "change", "check_status", "hostmap", "scatterplot", "geomap", "log_stream", "event_stream", "event_timeline", "alert_graph", "alert_value", "monitor_summary", "slo", "slo_list", "list_stream", "free_text", "split_group", "funnel", "topology_map", "service_summary", "trace_service"]);
+type AnyWidget = { definition: Record<string, unknown> & { type: string; widgets?: AnyWidget[]; content?: string } };
+function sanitizeWidgets(widgets: AnyWidget[]): AnyWidget[] {
+  return widgets.filter((w) => w?.definition && SAFE_WIDGETS.has(w.definition.type)).map((w) => {
+    const def = { ...w.definition };
+    if (typeof def.content === "string") def.content = def.content.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/<[^>]+>/g, ""); // no remote images / html in notes
+    if (Array.isArray(def.widgets)) def.widgets = sanitizeWidgets(def.widgets as AnyWidget[]);
+    return { ...w, definition: def };
+  });
+}
+
 async function createOrUpdateDashboard(job: Job): Promise<string> {
-  const payload = { ...job.dashboardJson, tags: [], title: `[Community] ${job.title}`.slice(0, 250) };
+  const widgets = sanitizeWidgets((job.dashboardJson.widgets ?? []) as unknown as AnyWidget[]);
+  const payload = { ...job.dashboardJson, widgets, tags: [], notify_list: [], title: `[Community] ${job.title}`.slice(0, 250) };
   const post = async () => {
     const res = await dd<{ id: string }>("POST", "/v1/dashboard", payload);
     try { await dd("POST", `/v2/dashboard/lists/manual/${await ensureList(LIST_NAME)}/dashboards`, { dashboards: [{ type: "custom_timeboard", id: res.id }] }); }
@@ -55,7 +69,7 @@ async function runJob(browser: Browser, job: Job) {
   await api("POST", `/api/admin/preview-jobs/${job.id}/claim`);
   const ddId = await createOrUpdateDashboard(job);
   log(`[job ${job.id}] ${job.slug} rev ${job.revision}: Datadog dashboard ${ddId}`);
-  const specs = seriesForDashboard(job.dashboardJson).slice(0, MAX_SERIES);
+  const specs = seriesForDashboard({ ...job.dashboardJson, widgets: sanitizeWidgets((job.dashboardJson.widgets ?? []) as unknown as AnyWidget[]) as unknown as DdDashboard["widgets"] }).slice(0, MAX_SERIES);
   const host = process.env.DOGSTATSD_HOST; const port = Number(process.env.DOGSTATSD_PORT ?? 8125);
   if (!host) throw new Error("DOGSTATSD_HOST not set");
   log(`[job ${job.id}] feeding ${specs.length} series for ${FEED_MINUTES} min`);
@@ -64,7 +78,6 @@ async function runJob(browser: Browser, job: Job) {
   const file = path.join(OUT_DIR, `u-${job.dashboardId}-${job.revision}.webp`);
   try {
     await sleep(60_000);
-    await enablePercentiles(specs, log).catch(() => undefined);
     await sleep(Math.max(0, FEED_MINUTES - 1) * 60_000);
     mkdirSync(OUT_DIR, { recursive: true });
     await captureToFile(browser, ddId, Math.max(5, FEED_MINUTES - 1), file);
@@ -83,6 +96,8 @@ async function main() {
   const { jobs } = await api<{ jobs: Job[] }>("GET", `/api/admin/preview-jobs?limit=${LIMIT}`);
   log(`${jobs.length} queued preview job(s)`);
   if (DRY || !jobs.length) { for (const j of jobs) log(`  #${j.id} ${j.slug} rev ${j.revision}`); return; }
+  // Safety net: a previous interrupted run may have left a public share open
+  try { for (const sh of await listShares()) if (jobs.some((j) => j.ddDashboardId === sh.dashboard_id)) { await unshare(sh.token); log(`removed leftover share for ${sh.dashboard_id}`); } } catch { /* endpoint may be unavailable */ }
   const browser = await chromium.launch();
   let ok = 0, failed = 0;
   try {

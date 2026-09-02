@@ -4,7 +4,7 @@
 import "../env";
 import dgram from "node:dgram";
 import { existsSync, readFileSync } from "node:fs";
-import { metricOfQuery } from "./validate";
+import { metricOfQuery, validateQuery } from "./validate";
 import { dd, DdApiError } from "./dd-api";
 import type { DdDashboard, DdWidget } from "./types";
 
@@ -23,6 +23,8 @@ const TAG_VALUES: Record<string, string[]> = {
   app: ["api", "web", "worker"], version: ["1.2.0", "1.3.0", "1.4.0"], region: ["us-east-1", "eu-west-1", "ap-northeast-2"], env: ["prod", "staging", "dev"], level: ["info", "warn", "error"], type: ["read", "write", "other"], operation: ["get", "put", "delete"], resource: ["cpu", "memory", "pods"],
 };
 const genericValues = (tag: string) => [`${tag}-a`, `${tag}-b`, `${tag}-c`];
+/** Tag keys/values that reach the DogStatsD wire: only [a-z0-9_:./*-]; anything else (newlines, pipes, '#') becomes '_'. */
+const safeTag = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9_:./*-]/g, "_").slice(0, 200);
 const valuesFor = (k: string) => (TAG_VALUES[k] ?? genericValues(k)).map((v) => v.toLowerCase());
 
 function hash(s: string): number { let h = 2166136261; for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; }
@@ -34,12 +36,12 @@ function hash(s: string): number { let h = 2166136261; for (const ch of s) { h ^
 export function seriesForDashboard(d: DdDashboard): SeriesSpec[] {
   const specs = new Map<string, SeriesSpec>();
   const widgets: DdWidget[] = d.widgets.flatMap((w) => [w, ...((w.definition.widgets as DdWidget[] | undefined) ?? [])]);
-  const varPrefix = new Map(d.template_variables.map((v) => [v.name, v.prefix]));
+  const varPrefix = new Map((d.template_variables ?? []).map((v) => [v.name, v.prefix]));
   for (const w of widgets) {
     const reqs = (w.definition.requests as { queries?: { query: string }[] }[] | undefined) ?? [];
     for (const r of reqs) for (const q of r.queries ?? []) {
       const m = metricOfQuery(q.query);
-      if (!m) continue;
+      if (!m || validateQuery(q.query) !== null || !/^[a-zA-Z][a-zA-Z0-9_.]{0,199}$/.test(m.metric)) continue; // only well-formed queries feed the wire
       const type: SeriesSpec["type"] = /^p\d/.test(m.agg) ? "d" : /as_rate|as_count/.test(m.modifiers) ? "c" : "g";
       const fixed = new Map<string, string[]>(); // key -> candidate values that satisfy the filter
       const keys = new Set<string>(["host"]);
@@ -49,14 +51,14 @@ export function seriesForDashboard(d: DdDashboard): SeriesSpec[] {
         const v = /^\$([A-Za-z_][A-Za-z0-9_]*)$/.exec(f);
         if (v) { keys.add(varPrefix.get(v[1]) ?? v[1]); continue; }
         const inm = /^([A-Za-z_][A-Za-z0-9_.\/-]*)\s+IN\s*\(([^)]*)\)$/i.exec(f);
-        if (inm) { fixed.set(inm[1], inm[2].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean).slice(0, 3)); keys.add(inm[1]); continue; }
+        if (inm) { fixed.set(inm[1], inm[2].split(",").map((s) => safeTag(s)).filter(Boolean).slice(0, 3)); keys.add(inm[1]); continue; }
         const kv = /^([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/.exec(f);
         if (kv) {
-          const key = kv[1]; let val = kv[2].toLowerCase();
+          const key = kv[1]; let val = safeTag(kv[2]);
           keys.add(key);
-          if (val.includes("$")) continue; // template variable value: any of our default values matches when the variable is *
+          if (kv[2].includes("$")) continue; // template variable value: any of our default values matches when the variable is *
           if (val.endsWith("*")) val = val.slice(0, -1) + (val.length > 1 ? "00" : valuesFor(key)[0]);
-          fixed.set(key, [val]);
+          if (val) fixed.set(key, [val]);
         }
       }
       const byKeys = m.by.filter((b) => b !== "host");
@@ -70,7 +72,7 @@ export function seriesForDashboard(d: DdDashboard): SeriesSpec[] {
         else if (k === "host") vals = m.by.includes("host") ? HOSTS : HOSTS.slice(0, 2);
         else vals = fanout.has(k) ? valuesFor(k).slice(0, 3) : valuesFor(k).slice(0, 1);
         const next: string[][] = [];
-        for (const c of combos) for (const v of vals) next.push([...c, `${k}:${v}`]);
+        for (const c of combos) for (const v of vals) next.push([...c, `${safeTag(k)}:${safeTag(v)}`]);
         combos = next;
         if (combos.length > 54) { combos = combos.slice(0, 54); }
       }
