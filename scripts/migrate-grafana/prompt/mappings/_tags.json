@@ -1,0 +1,9 @@
+{
+  "description": "Default Prometheus label -> Datadog tag renames, applied only when the metric maps to a native Datadog integration metric. OpenMetrics-collected metrics keep their labels verbatim.",
+  "tags": {
+    "instance": "host", "node": "host", "nodename": "host", "kubernetes_node": "host",
+    "namespace": "kube_namespace", "pod": "pod_name", "pod_name": "pod_name", "container": "kube_container_name", "container_name": "kube_container_name",
+    "deployment": "kube_deployment", "daemonset": "kube_daemon_set", "statefulset": "kube_stateful_set", "replicaset": "kube_replica_set",
+    "job_name": "kube_job", "cronjob": "kube_cronjob", "hpa": "horizontalpodautoscaler", "phase": "pod_phase", "persistentvolumeclaim": "persistentvolumeclaim"
+  }
+}

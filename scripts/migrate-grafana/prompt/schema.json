@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["native", "openmetrics", "partial", "unsupported"] },
+          "queries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "query": { "type": "string" },
+                "aggregator": { "type": "string", "enum": ["avg", "sum", "min", "max", "last"] }
+              },
+              "required": ["name", "query"]
+            }
+          },
+          "formula": { "type": "string" },
+          "tagRenames": { "type": "object", "additionalProperties": { "type": "string" } },
+          "unmappedMetrics": { "type": "array", "items": { "type": "string" } },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["id", "status", "queries", "formula", "unmappedMetrics", "notes"]
+      }
+    }
+  },
+  "required": ["items"]
+}

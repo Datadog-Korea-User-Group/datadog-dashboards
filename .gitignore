@@ -12,3 +12,5 @@ next-env.d.ts
 coverage/
 .omc/
 test-results/
+/CLAUDE.md
+/AGENTS.md

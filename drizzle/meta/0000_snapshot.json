@@ -1,5 +1,5 @@
 {
-  "id": "2e6662db-93e4-4932-ae98-8240942e5c41",
+  "id": "a56727eb-86b1-4ddb-9a82-0f02141a6718",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -410,7 +410,7 @@
           "primaryKey": false,
           "notNull": false,
           "generated": {
-            "as": "setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B') || setweight(to_tsvector('simple', array_to_string(tags, ' ')), 'C')",
+            "as": "setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B') || setweight(array_to_tsvector(tags), 'C')",
             "type": "stored"
           }
         }

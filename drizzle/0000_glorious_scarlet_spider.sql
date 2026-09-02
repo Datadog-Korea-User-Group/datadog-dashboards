@@ -50,7 +50,7 @@ CREATE TABLE "dashboards" (
 	"is_published" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B') || setweight(to_tsvector('simple', array_to_string(tags, ' ')), 'C')) STORED,
+	"search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B') || setweight(array_to_tsvector(tags), 'C')) STORED,
 	CONSTRAINT "dashboards_slug_unique" UNIQUE("slug"),
 	CONSTRAINT "dashboards_source_id_unique" UNIQUE("source_id")
 );
