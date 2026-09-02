@@ -43,9 +43,13 @@ export function normalizeQueryFilters(q: string): string {
       return not ? vals.map((v) => `NOT ${key}:${v}`).join(" AND ") : `(${vals.map((v) => `${key}:${v}`).join(" OR ")})`;
     });
     const andForm = /\bAND\b|\bOR\b|\bIN\s*\(/i.test(fixed);
+    if (!/\$[A-Za-z_][A-Za-z0-9_]*\$/.test(fixed) && !andForm && !fixed.includes(",")) return `{${fixed}}`;
     const parts = fixed.split(/\s+AND\s+/).flatMap((s) => splitTopLevel(s)).map((s) => s.trim()).filter(Boolean)
+      // `instance="$app$node"` style concatenations have no Datadog equivalent: drop the filter rather than emit `$app$node.value`
+      .filter((p) => !/\$[A-Za-z_][A-Za-z0-9_]*\$/.test(p))
       .map((p) => p.replace(/^(!|NOT\s+)?([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/s, (_, neg: string | undefined, key: string, val: string) =>
         `${neg ?? ""}${key}:${sanitizeTagValue(val)}`));
+    if (!parts.length) return "{*}";
     if (!andForm) return `{${parts.join(",")}}`;
     // in the AND form an exclusion is spelled `NOT key:value`; `!key:value` is only valid in comma lists
     return `{${parts.map((p) => (p.startsWith("!") ? `NOT ${p.slice(1)}` : p)).join(" AND ")}}`;

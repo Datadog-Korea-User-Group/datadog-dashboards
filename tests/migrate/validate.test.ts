@@ -53,6 +53,9 @@ describe("normalizeQueryFilters", () => {
     expect(normalizeQueryFilters("sum:m{a:*,!b:*,c NOT IN (x,y)}")).toBe("sum:m{a:* AND NOT b:* AND c NOT IN (x,y)}");
     expect(normalizeQueryFilters("sum:m{a:b AND !c:d}")).toBe("sum:m{a:b AND NOT c:d}");
     expect(normalizeQueryFilters("sum:m{!c:d,a:b}")).toBe("sum:m{!c:d,a:b}");
+    // concatenated template variables (instance="$app$node") cannot be expressed: the filter is dropped
+    expect(normalizeQueryFilters("avg:m{$job,instance:$app$node.value}")).toBe("avg:m{$job}");
+    expect(normalizeQueryFilters("avg:m{instance:$app$node.value}")).toBe("avg:m{*}");
     // wildcards are not allowed inside IN (...): spell them as an OR group; the +Inf bucket is the histogram count
     expect(normalizeQueryFilters("sum:m.count{code IN (4*,5*),verb:get} by {code}")).toBe("sum:m.count{(code:4* OR code:5*) AND verb:get} by {code}");
     expect(normalizeQueryFilters("sum:m{k NOT IN (a*,b),z:1}")).toBe("sum:m{NOT k:a* AND NOT k:b AND z:1}");
