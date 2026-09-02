@@ -3,7 +3,7 @@ import { STATUS_RANK } from "./types";
 import { gridToLayout, packGravity } from "./layout";
 import type { VariableResult } from "./variables";
 import { panelNeedsTranslation } from "./extract";
-import { normalizeQueryFilters } from "./validate";
+import { normalizeQueryFilters, metricOfQuery } from "./validate";
 
 export interface AssembleMeta { grafanaId: number; sourceUrl: string; orgName: string; model: string; llm: ConversionReport["llm"] }
 
@@ -29,6 +29,24 @@ const isWarn = (c: string) => /orange|yellow|#eab839|#ff9830|#fade2a|#e0b400|#f2
 export function fixVariableFilters(query: string, prefixes: Map<string, string>): string {
   return query.replace(/\b([A-Za-z_][A-Za-z0-9_.\/-]*):\$([A-Za-z_][A-Za-z0-9_]*)\.value\*?/g, (m, key: string, v: string) =>
     prefixes.get(v) === key ? `$${v}` : `${key}:$${v}.value`);
+}
+
+const NATIVE_RE = /^(system|kubernetes|kubernetes_state|kube_apiserver|kube_controller_manager|kube_scheduler|docker|container|nginx|nginx_ingress|redis|postgresql|mysql|kafka|rabbitmq|elasticsearch|mongodb|jvm|haproxy|envoy|istio|vault|consul|etcd|coredns|argocd|cert_manager|aws)\./;
+const BYTE_UNITS = new Set(["B", "KiB", "MiB", "GiB", "B/s", "KiB/s", "MiB/s"]);
+export const isNative = (metrics: string[]) => metrics.length > 0 && metrics.every((m) => NATIVE_RE.test(m));
+/**
+ * Datadog stores native metrics with unit metadata (system.mem.* bytes, system.io.*kb_s KiB/s, kubernetes.cpu.* nanocores)
+ * and scales them for display, so the byte/core conversions a translation may add would show wrong numbers.
+ */
+export function stripUnitScaling(formula: string, metrics: string[]): string {
+  if (!isNative(metrics)) return formula;
+  return formula
+    .replace(/\s*\*\s*\(?\s*1024\s*\*\s*1024\s*\)?/g, "")
+    .replace(/\s*[*/]\s*1048576(\.0+)?\b/g, "")
+    .replace(/\s*[*/]\s*1024(\.0+)?\b/g, "")
+    .replace(/\s*\/\s*(1e9|1e\+9|1000000000)(\.0+)?\b/g, "")
+    .replace(/\s*\*\s*(1e-9|0\.000000001)\b/g, "")
+    .trim();
 }
 
 function rename(queries: TranslationResult["queries"], formula: string, start: number): { queries: TranslationResult["queries"]; formula: string; next: number } {
@@ -67,7 +85,7 @@ function buildQueryWidget(p: NormPanel, tr: Map<string, TranslationResult>, pref
     if (r.status === "unsupported" || !r.queries.length) continue;
     const rn = rename(r.queries, r.formula, n); n = rn.next;
     for (const q of rn.queries) queries.push({ data_source: "metrics", name: q.name, query: normalizeQueryFilters(fixVariableFilters(q.query, prefixes)), ...(scalar ? { aggregator: q.aggregator ?? defaultAgg } : {}) });
-    let formula = rn.formula;
+    let formula = stripUnitScaling(rn.formula, rn.queries.map((q) => metricOfQuery(q.query)?.metric ?? ""));
     if (p.unit === "percentunit") formula = `(${formula}) * 100`;
     const alias = t.legendFormat && t.legendFormat !== "__auto" && !t.legendFormat.includes("{{") ? t.legendFormat : undefined;
     formulas.push({ formula, ...(alias ? { alias } : {}) });
@@ -78,7 +96,9 @@ function buildQueryWidget(p: NormPanel, tr: Map<string, TranslationResult>, pref
   }
   // Panels whose targets were all unsupported are handled above; a partially unsupported panel keeps the good targets.
   if (targets.some((t) => t.status === "unsupported") && worst !== "unsupported") worst = "partial";
-  const unit = p.unit ? UNIT_MAP[p.unit] : undefined;
+  // byte-family units are known to Datadog for native metrics; a custom unit would mislabel the auto-scaled value
+  const metrics = queries.map((q) => metricOfQuery(q.query)?.metric ?? "");
+  const unit = p.unit && !(BYTE_UNITS.has(UNIT_MAP[p.unit]) && isNative(metrics)) ? UNIT_MAP[p.unit] : undefined;
   const thresholds = (p.thresholds ?? []).filter((s) => s.value !== null && Number.isFinite(s.value));
   switch (p.type) {
     case "timeseries": {

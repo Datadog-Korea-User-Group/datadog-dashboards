@@ -2,9 +2,9 @@
   "integration": "kubernetes",
   "description": "kubelet / cAdvisor container metrics -> Datadog kubernetes.* (Agent kubelet check). kubernetes.cpu.usage.total is in nanocores (rate of container_cpu_usage_seconds_total * 1e9).",
   "entries": [
-    { "prom": "container_cpu_usage_seconds_total", "dd": "kubernetes.cpu.usage.total", "kind": "rate", "scale": 1e-9, "note": "nanocores; divide by 1e9 for cores" },
-    { "prom": "container_cpu_user_seconds_total", "dd": "kubernetes.cpu.user.total", "kind": "rate", "scale": 1e-9 },
-    { "prom": "container_cpu_system_seconds_total", "dd": "kubernetes.cpu.system.total", "kind": "rate", "scale": 1e-9 },
+    { "prom": "container_cpu_usage_seconds_total", "dd": "kubernetes.cpu.usage.total", "kind": "rate", "note": "nanocores (Datadog displays cores automatically)" },
+    { "prom": "container_cpu_user_seconds_total", "dd": "kubernetes.cpu.user.total", "kind": "rate" },
+    { "prom": "container_cpu_system_seconds_total", "dd": "kubernetes.cpu.system.total", "kind": "rate" },
     { "prom": "container_cpu_cfs_throttled_periods_total", "dd": "kubernetes.cpu.cfs.throttled.periods", "kind": "counter" },
     { "prom": "container_cpu_cfs_periods_total", "dd": "kubernetes.cpu.cfs.periods", "kind": "counter" },
     { "prom": "container_cpu_cfs_throttled_seconds_total", "dd": "kubernetes.cpu.cfs.throttled.seconds", "kind": "counter" },

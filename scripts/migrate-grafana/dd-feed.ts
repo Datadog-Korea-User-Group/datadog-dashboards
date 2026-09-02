@@ -124,8 +124,10 @@ export function capacityFor(spec: Pick<SeriesSpec, "metric" | "tags">): { cap: n
   const role = ROLE_TOTAL.test(m) ? "total" : ROLE_FREE.test(m) ? "free" : "used";
   const root = m.replace(/total|capacity|limit|max|allocatable|size|free|avail(able)?|usable|unused|cached|buffers?|reserved|used|usage|rss|working_set|requests?/g, "");
   const h = hash(`${root}|${spec.tags.join(",")}`);
+  // Datadog multiplies system.mem.*/system.swap.* by 1048576 and system.disk.* by 1024 at intake (the Agent reports MiB / KiB),
+  // so those are emitted in MiB / KiB; everything else in bytes.
   const cap = kind === "cores" ? 4 * (1 + Math.round(h * 7)) : kind === "inodes" ? 4e6 * (1 + Math.round(h * 3)) : kind === "mib" ? 8192 * (1 + Math.round(h * 3))
-    : kind === "disk" ? 100e9 * (0.5 + h * 4) : 8e9 * (0.5 + h * 3);
+    : kind === "disk" ? 100e9 * (0.5 + h * 4) / (m.startsWith("system.disk.") ? 1024 : 1) : 8e9 * (0.5 + h * 3);
   return { cap, role, integer: kind === "cores" || kind === "inodes" };
 }
 
