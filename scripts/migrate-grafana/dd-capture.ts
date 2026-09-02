@@ -39,7 +39,9 @@ export async function captureToFile(browser: Browser, ddId: string, minutes: num
   try {
     const to = Date.now(), from = to - minutes * 60_000;
     const url = `${s.public_url}${s.public_url.includes("?") ? "&" : "?"}from_ts=${from}&to_ts=${to}`;
-    const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, colorScheme: "light" });
+    // 1440 css px keeps Datadog in its single-column layout (wider viewports switch to the two-column high-density mode);
+    // the 4/3 device scale factor still yields a 1920x1080 bitmap.
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 810 }, deviceScaleFactor: 4 / 3, colorScheme: "light" });
     const page = await ctx.newPage();
     try {
       await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 }).catch(() => page.waitForTimeout(5_000));

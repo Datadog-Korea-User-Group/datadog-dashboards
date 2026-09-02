@@ -4,8 +4,11 @@ export const LAYOUT_SCALE = 0.25; // Grafana row unit (30px) -> Datadog unit; h=
 
 /** Edge-consistent 24 -> 12 column mapping for x/width; height rounded (min 1). y is assigned by packGravity(). */
 export function gridToLayout(g: GridPos, K = LAYOUT_SCALE): DdLayout {
-  const x = Math.floor(g.x / 2);
-  const width = Math.max(1, Math.min(12 - x, Math.floor((g.x + g.w) / 2) - x));
+  let x = Math.floor(g.x / 2);
+  // Datadog widgets narrower than 2 columns are unreadable (titles truncate); widen and shift left if needed.
+  let width = Math.max(2, Math.floor((g.x + g.w) / 2) - x);
+  if (x + width > 12) x = Math.max(0, 12 - width);
+  width = Math.min(12 - x, width);
   const height = Math.max(1, Math.round(g.h * K));
   return { x, y: 0, width, height };
 }
@@ -20,11 +23,24 @@ const intersects = (a: DdLayout, b: DdLayout) => xOverlap(a, b) && a.y < b.y + b
  */
 export function packGravity<T extends { grid: GridPos; layout: DdLayout }>(items: T[]): number {
   const sorted = [...items].sort((a, b) => a.grid.y - b.grid.y || a.grid.x - b.grid.x);
+  // The minimum width can make widgets of one Grafana row overlap: flow them to the right and wrap past column 12
+  // (wrapped widgets get a slightly larger effective Grafana y so gravity keeps them below the first line).
+  const gy = new Map<T, number>();
+  const wrapped = new Set<T>(); // act as full-width barriers so later rows do not float up beside them
+  let band = NaN, cursor = 0, wrap = 0;
+  for (const it of sorted) {
+    if (it.grid.y !== band) { band = it.grid.y; cursor = 0; wrap = 0; }
+    if (it.layout.x < cursor || wrap > 0) it.layout.x = cursor;
+    if (it.layout.x + it.layout.width > 12) { it.layout.x = 0; wrap++; }
+    if (wrap > 0) wrapped.add(it);
+    cursor = it.layout.x + it.layout.width;
+    gy.set(it, it.grid.y + wrap * 1e-3);
+  }
   const placed: T[] = [];
   for (const it of sorted) {
     let y = 0;
     for (const p of placed) {
-      if (p.grid.y < it.grid.y && xOverlap(p.layout, it.layout)) y = Math.max(y, p.layout.y + p.layout.height);
+      if (gy.get(p)! < gy.get(it)! && (wrapped.has(p) || xOverlap(p.layout, it.layout))) y = Math.max(y, p.layout.y + p.layout.height);
     }
     it.layout.y = y;
     placed.push(it);

@@ -22,6 +22,15 @@ const COLOR_PALETTE = (c: string): string => {
 const isRed = (c: string) => /red|#e0|#f2495c|#c4162a|#e24d42|#d44a3a|#bf1b00/i.test(c);
 const isWarn = (c: string) => /orange|yellow|#eab839|#ff9830|#fade2a|#e0b400|#f2cc0c/i.test(c);
 
+/**
+ * `key:$var.value*` (from `label=~"$var(...)?"`) becomes `key:**` when the variable is `*`; use the variable filter
+ * directly when its prefix is that key, otherwise drop the stray wildcard.
+ */
+export function fixVariableFilters(query: string, prefixes: Map<string, string>): string {
+  return query.replace(/\b([A-Za-z_][A-Za-z0-9_.\/-]*):\$([A-Za-z_][A-Za-z0-9_]*)\.value\*?/g, (m, key: string, v: string) =>
+    prefixes.get(v) === key ? `$${v}` : `${key}:$${v}.value`);
+}
+
 function rename(queries: TranslationResult["queries"], formula: string, start: number): { queries: TranslationResult["queries"]; formula: string; next: number } {
   const map = new Map<string, string>();
   const out = queries.map((q, i) => { const n = `query${start + i}`; map.set(q.name, n); return { ...q, name: n }; });
@@ -42,7 +51,7 @@ function unsupportedNote(p: NormPanel, reasons: string[]): DdWidget["definition"
 
 interface Built { def: DdWidget["definition"]; status: Status; targets: ConversionReport["panels"][number]["targets"] }
 
-function buildQueryWidget(p: NormPanel, tr: Map<string, TranslationResult>): Built {
+function buildQueryWidget(p: NormPanel, tr: Map<string, TranslationResult>, prefixes: Map<string, string>): Built {
   const targets: Built["targets"] = [];
   let n = 1;
   const queries: (TranslationResult["queries"][number] & { data_source: "metrics" })[] = [];
@@ -57,7 +66,7 @@ function buildQueryWidget(p: NormPanel, tr: Map<string, TranslationResult>): Bui
     targets.push({ expr: t.expr, status: r.status, queries: r.queries.map((q) => q.query), formula: r.formula, notes: r.notes });
     if (r.status === "unsupported" || !r.queries.length) continue;
     const rn = rename(r.queries, r.formula, n); n = rn.next;
-    for (const q of rn.queries) queries.push({ data_source: "metrics", name: q.name, query: normalizeQueryFilters(q.query), ...(scalar ? { aggregator: q.aggregator ?? defaultAgg } : {}) });
+    for (const q of rn.queries) queries.push({ data_source: "metrics", name: q.name, query: normalizeQueryFilters(fixVariableFilters(q.query, prefixes)), ...(scalar ? { aggregator: q.aggregator ?? defaultAgg } : {}) });
     let formula = rn.formula;
     if (p.unit === "percentunit") formula = `(${formula}) * 100`;
     const alias = t.legendFormat && t.legendFormat !== "__auto" && !t.legendFormat.includes("{{") ? t.legendFormat : undefined;
@@ -105,12 +114,12 @@ function buildQueryWidget(p: NormPanel, tr: Map<string, TranslationResult>): Bui
   }
 }
 
-function buildPanel(p: NormPanel, tr: Map<string, TranslationResult>): Built {
+function buildPanel(p: NormPanel, tr: Map<string, TranslationResult>, prefixes: Map<string, string>): Built {
   if (p.type === "text") return { def: noteWidget("", (p.content ?? p.title ?? "").trim() || " "), status: "native", targets: [] };
   if (p.type === "logs") return { def: { type: "log_stream", title: p.title, query: "", columns: ["host", "service"], indexes: [], show_date_column: true, show_message_column: true, message_display: "expanded-md", sort: { column: "time", order: "desc" } }, status: "partial", targets: p.targets.map((t) => ({ expr: t.expr, status: "partial", notes: ["logs panel: query left empty"] })) };
   if (p.type === "unknown") return { def: unsupportedNote(p, [`no Datadog equivalent for plugin ${p.rawType}`]), status: "unsupported", targets: p.targets.map((t) => ({ expr: t.expr, status: "unsupported", notes: [] })) };
   if (!panelNeedsTranslation(p)) return { def: noteWidget(p.title, `Panel had no queries (${p.rawType}).`), status: "partial", targets: [] };
-  return buildQueryWidget(p, tr);
+  return buildQueryWidget(p, tr, prefixes);
 }
 
 export function assemble(d: NormalizedDashboard, vars: VariableResult, tr: Map<string, TranslationResult>, meta: AssembleMeta): { dashboard: DdDashboard; report: ConversionReport } {
@@ -119,8 +128,10 @@ export function assemble(d: NormalizedDashboard, vars: VariableResult, tr: Map<s
   const tagRenames = new Map<string, string>();
   for (const r of tr.values()) for (const [k, v] of Object.entries(r.tagRenames ?? {})) if (!tagRenames.has(k)) tagRenames.set(k, v);
 
+  const prefixes = new Map(vars.vars.map((v) => [v.name, tagRenames.get(v.prefix) ?? v.prefix]));
+
   const toWidget = (p: NormPanel): DdWidget & { grid: typeof p.grid } => {
-    const b = buildPanel(p, tr);
+    const b = buildPanel(p, tr, prefixes);
     panelsReport.push({ id: p.id, title: p.title, grafanaType: p.rawType, datadogType: b.def.type, status: b.status, targets: b.targets });
     for (const t of p.targets) {
       const r = tr.get(`${p.id}.${t.refId}`);
@@ -129,7 +140,9 @@ export function assemble(d: NormalizedDashboard, vars: VariableResult, tr: Map<s
         e.count++; e.panelIds.add(p.id); unmapped.set(m, e);
       }
     }
-    return { definition: b.def, layout: gridToLayout(p.grid), grid: p.grid };
+    const layout = gridToLayout(p.grid);
+    if ((b.def.type === "timeseries" || b.def.type === "heatmap") && layout.height < 2) layout.height = 2;
+    return { definition: b.def, layout, grid: p.grid };
   };
 
   const strip = (w: DdWidget & { grid: unknown }): DdWidget => ({ definition: w.definition, layout: w.layout });

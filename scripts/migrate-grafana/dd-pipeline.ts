@@ -1,7 +1,7 @@
 // Wave orchestrator: for each batch of converted dashboards -> create in Datadog -> feed dummy metrics -> wait -> capture -> stop feed.
 //   pnpm migrate:dd [--batch 50] [--feed-minutes 15] [--max-waves N] [--concurrency 3] [--max-series 30000]
 import "../env";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { CatalogItem } from "./fetch";
 import { createOrUpdate, loadState } from "./dd-create";
@@ -18,6 +18,9 @@ const feedMinutes = Number(flag("feed-minutes") ?? 18);
 const maxWaves = Number(flag("max-waves") ?? Infinity);
 const concurrency = Number(flag("concurrency") ?? 3);
 const maxSeries = Number(flag("max-series") ?? 30000);
+// screenshots captured before this time count as missing (re-create + re-capture after a converter/capture fix)
+const staleBefore = flag("stale-before") ? Date.parse(flag("stale-before")!) : 0;
+const hasShot = (id: number) => { const f = `${SHOT_DIR}/${id}.webp`; return existsSync(f) && statSync(f).mtimeMs >= staleBefore; };
 const log = (s: string) => process.stderr.write(`${new Date().toISOString()} ${s}\n`);
 
 function loadPipe(): PipeState { return existsSync(PIPE_STATE) ? (JSON.parse(readFileSync(PIPE_STATE, "utf8")) as PipeState) : { waves: [], done: {} }; }
@@ -31,7 +34,7 @@ async function main() {
   for (let w = 0; w < maxWaves; w++) {
     const ids = catalog
       .map((c) => c.id)
-      .filter((id) => existsSync(`.cache/datadog/${id}.json`) && !existsSync(`${SHOT_DIR}/${id}.webp`) && (pipe.done[id]?.attempts ?? 0) < 2)
+      .filter((id) => existsSync(`.cache/datadog/${id}.json`) && !hasShot(id) && (pipe.done[id]?.attempts ?? 0) < 2)
       .slice(0, batch);
     if (!ids.length) {
       if (!argv.includes("--follow")) { log("nothing left to process"); break; }
@@ -64,7 +67,7 @@ async function main() {
       await enablePercentiles(specs, log);
       await sleep(Math.max(0, feedMinutes - 1) * 60_000);
       // 3) capture a window that lies fully inside the feed period (feed keeps running meanwhile)
-      const r = await captureMany(created, { minutes: Math.max(5, feedMinutes - 2), concurrency, log });
+      const r = await captureMany(created, { minutes: Math.max(5, feedMinutes - 2), concurrency, log, force: true });
       wave.captured = r.ok.length; wave.failed += r.failed.length;
       for (const id of r.ok) pipe.done[id] = { ...pipe.done[id], capturedAt: new Date().toISOString(), error: undefined };
       for (const f of r.failed) pipe.done[f.id] = { ...pipe.done[f.id], error: f.error };

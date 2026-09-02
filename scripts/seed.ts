@@ -1,7 +1,7 @@
 // Seeds converted grafana.com dashboards from .cache into the database (idempotent by source_id).
 //   pnpm seed [--top N] [--ids 1860,9614] [--only-created]   (--only-created: only dashboards accepted by the Datadog API)
 import "./env";
-import { existsSync, readFileSync } from "node:fs";
+import { statSync, existsSync, readFileSync } from "node:fs";
 import { eq, sql } from "drizzle-orm";
 import { db, pool } from "../src/db";
 import { dashboardRevisions, dashboards, type ConversionSummary } from "../src/db/schema";
@@ -57,7 +57,9 @@ async function main() {
       apiError,
     };
     const tags = Array.from(new Set([...(Array.isArray(src.json.tags) ? (src.json.tags as string[]) : []), ...(src.meta.categories ?? [])].map((t) => String(t).toLowerCase().trim()).filter(Boolean))).slice(0, 20);
-    const screenshot = existsSync(`public/screenshots/${c.id}.webp`) ? `/screenshots/${c.id}.webp` : null;
+    // ?v=<mtime> busts next/image and browser caches when a screenshot is re-captured
+    const shotFile = `public/screenshots/${c.id}.webp`;
+    const screenshot = existsSync(shotFile) ? `/screenshots/${c.id}.webp?v=${Math.floor(statSync(shotFile).mtimeMs / 1000)}` : null;
     const values = {
       title: c.name,
       description: (c.description || "").trim().slice(0, 500),

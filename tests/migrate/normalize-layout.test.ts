@@ -45,20 +45,20 @@ describe("layout", () => {
     const items = grids.map((grid) => ({ grid, layout: gridToLayout(grid) }));
     const height = packGravity(items);
     for (const it of items) expect(it.layout.x + it.layout.width).toBeLessThanOrEqual(12);
-    expect(items.slice(0, 5).map((i) => i.layout.y)).toEqual([0, 0, 0, 0, 0]);
-    expect(items.slice(5, 7).map((i) => i.layout.y)).toEqual([1, 1]);
-    expect(items.slice(7).map((i) => i.layout.y)).toEqual([3, 3, 3]);
-    expect(height).toBe(5);
+    // the fifth stat (3/24 wide) is widened to the 2-column minimum and wraps below its row; later rows stay below it
+    expect(items.slice(0, 5).map((i) => i.layout.y)).toEqual([0, 0, 0, 0, 1]);
+    expect(items.slice(5, 7).map((i) => i.layout.y)).toEqual([2, 2]);
+    expect(items.slice(7).map((i) => i.layout.y)).toEqual([4, 4, 4]);
+    expect(height).toBe(6);
     // array is in reading order (Datadog ordered layout places widgets sequentially)
     const ys = items.map((i) => i.layout.y);
     expect([...ys].sort((a, b) => a - b)).toEqual(ys);
   });
-  it("fits eight 3-wide gauges into one 12-column row", () => {
+  it("flows eight 3-wide gauges at the 2-column minimum width, wrapping past column 12", () => {
     const items = Array.from({ length: 8 }, (_, i) => ({ grid: { x: i * 3, y: 0, w: 3, h: 4 }, layout: gridToLayout({ x: i * 3, y: 0, w: 3, h: 4 }) }));
     packGravity(items);
-    expect(new Set(items.map((i) => i.layout.y)).size).toBe(1);
-    // right edges follow floor((x+w)/2): 1.5 -> 1, 3, 4.5 -> 4, 6, ...
-    expect(items.map((i) => i.layout.x + i.layout.width)).toEqual([1, 3, 4, 6, 7, 9, 10, 12]);
+    expect(items.map((i) => i.layout.width)).toEqual([2, 2, 2, 2, 2, 2, 2, 2]);
+    expect(items.map((i) => [i.layout.x, i.layout.y])).toEqual([[0, 0], [2, 0], [4, 0], [6, 0], [8, 0], [10, 0], [0, 1], [2, 1]]);
   });
 });
 
