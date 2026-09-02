@@ -118,8 +118,9 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-html { font-size: 14px; background: var(--ui-background-secondary); }
-body { background: transparent; color: var(--ui-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+/* No rubber-band overscroll: keeps the sticky header flush with the top and the liquid background continuous */
+html { font-size: 14px; background: var(--ui-background-secondary); overscroll-behavior-y: none; }
+body { background: transparent; color: var(--ui-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
 a { color: inherit; }
 
 /* Liquid background: slow-drifting blurred blobs in the Datadog brand colors, behind all content */

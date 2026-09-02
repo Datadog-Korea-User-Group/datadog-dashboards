@@ -69,7 +69,7 @@ export async function callClaude(model: string, systemPrompt: string, input: unk
     const msg = String(parsed.result ?? "");
     const fatal = /not logged in|login/i.test(msg);
     const rl = /rate.?limit|usage limit|overloaded|too many|429|529|capacity/i.test(msg);
-    throw new ClaudeError(`claude error: ${msg.slice(0, 300)}`, fatal, rl);
+    throw new ClaudeError(`claude error: ${msg.slice(0, 300)} [${String(parsed.subtype)}/${String(parsed.terminal_reason)}/${String(parsed.api_error_status)}]`, fatal, rl);
   }
   const so = parsed.structured_output as { items?: TranslationResult[] } | undefined;
   if (so?.items) return { items: so.items };
