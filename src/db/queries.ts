@@ -266,3 +266,12 @@ export const getHomeData = unstable_cache(queryHomeData, ["dashboards-home"], {
 });
 
 export type { ConversionSummary };
+
+/** Every published dashboard, slug and mtime only, for the sitemap. */
+export async function listSitemapDashboards() {
+  return db
+    .select({ slug: dashboards.slug, updatedAt: dashboards.updatedAt })
+    .from(dashboards)
+    .where(eq(dashboards.isPublished, true))
+    .orderBy(desc(dashboards.updatedAt));
+}

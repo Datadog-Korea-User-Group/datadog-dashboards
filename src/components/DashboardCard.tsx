@@ -12,7 +12,7 @@ export function DashboardCard({ item, sketch }: { item: DashboardListItem; sketc
         {item.screenshotUrl ? (
           <Image
             src={item.screenshotUrl}
-            alt=""
+            alt={item.title}
             width={1920}
             height={1080}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

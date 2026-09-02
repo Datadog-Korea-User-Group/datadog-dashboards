@@ -16,13 +16,41 @@ import { QualityBadge } from "@/components/QualityBadge";
 import { RatingStars } from "@/components/RatingStars";
 import { ViewPing } from "@/components/ViewPing";
 import { Markdown } from "@/lib/markdown";
+import { absolute, languageAlternates } from "@/lib/site-url";
 import { deleteDashboard, rateDashboard, setPublished } from "./actions";
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
+function metaDescription(d: { description: string; title: string; sourceId: number | null; sourceOrgName: string | null }) {
+  if (d.description) return d.description;
+  return d.sourceId
+    ? `Datadog dashboard for ${d.title}, converted from Grafana dashboard #${d.sourceId}${d.sourceOrgName ? ` by ${d.sourceOrgName}` : ""}.`
+    : `Datadog dashboard for ${d.title}. Download the JSON and import it into Datadog.`;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }): Promise<Metadata> {
+  const { locale, slug } = await params;
   const found = await getDashboardBySlug(slug);
   if (!found) return {};
-  return { title: found.dashboard.title, description: found.dashboard.description || undefined };
+
+  const d = found.dashboard;
+  const path = `/dashboards/${d.slug}`;
+  const description = metaDescription(d);
+  return {
+    title: d.title,
+    description,
+    alternates: { canonical: absolute(locale, path), languages: languageAlternates(path) },
+    openGraph: {
+      type: "article",
+      url: absolute(locale, path),
+      title: d.title,
+      description,
+      siteName: "Datadog Dashboards",
+      // Explicit: the file convention emits a locale-prefixed URL that 307s for "en".
+      images: [{ url: `${absolute(locale, path)}/opengraph-image`, width: 1200, height: 630, alt: d.title }],
+      modifiedTime: d.updatedAt.toISOString(),
+      tags: d.tags,
+    },
+    twitter: { card: "summary_large_image", title: d.title, description },
+  };
 }
 
 const STATUSES = ["native", "openmetrics", "partial", "unsupported"] as const;
@@ -87,6 +115,16 @@ async function ConversionQuality({ summary, score }: { summary: ConversionSummar
   );
 }
 
+/** CreativeWork describing the dashboard. `<` is escaped so the block cannot close its own script tag. */
+function JsonLd({ data }: { data: Record<string, unknown> }) {
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }}
+    />
+  );
+}
+
 export default async function DashboardDetailPage({
   params,
 }: {
@@ -114,6 +152,28 @@ export default async function DashboardDetailPage({
   // The JSON is fetched by the viewer on demand, so it never reaches the HTML.
   // Without a screenshot the sketch still needs layouts, trimmed to layout fields in SQL.
   const sketch = d.screenshotUrl ? null : (await getSketchWidgets([d.id])).get(d.id);
+  const canonical = absolute(locale, `/dashboards/${d.slug}`);
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    name: d.title,
+    description: metaDescription(d),
+    url: canonical,
+    dateModified: d.updatedAt.toISOString(),
+    image: `${canonical}/opengraph-image`,
+    keywords: d.tags.length ? d.tags.join(", ") : undefined,
+    author: author?.username
+      ? { "@type": "Person", name: author.username, url: absolute(locale, `/users/${author.username}`) }
+      : d.sourceOrgName
+        ? { "@type": "Organization", name: d.sourceOrgName }
+        : undefined,
+    isBasedOn: d.sourceUrl ?? undefined,
+    interactionStatistic: {
+      "@type": "InteractionCounter",
+      interactionType: "https://schema.org/DownloadAction",
+      userInteractionCount: d.downloads,
+    },
+  };
   const downloadHref = `/api/dashboards/${encodeURIComponent(d.slug)}/download`;
   const giscus = process.env.GISCUS_REPO_ID
     ? {
@@ -127,6 +187,7 @@ export default async function DashboardDetailPage({
   return (
     <div className="flex flex-col gap-5">
       <ViewPing slug={d.slug} />
+      <JsonLd data={jsonLd} />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{d.title}</h1>

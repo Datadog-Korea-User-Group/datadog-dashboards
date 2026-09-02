@@ -33,7 +33,7 @@ export function RatingStars({
             disabled={pending}
             onClick={() => rate(n)}
             onMouseEnter={() => setHover(n)}
-            aria-label={`${n}`}
+            aria-label={t("starsLabel", { n })}
             className="p-0.5 disabled:opacity-50"
           >
             <Star size={18} className={n <= shown ? "fill-warning text-warning" : "text-text-tertiary"} />

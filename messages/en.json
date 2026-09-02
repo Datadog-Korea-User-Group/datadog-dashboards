@@ -74,7 +74,8 @@
     "created": "Created {date}",
     "signInToRate": "Sign in to rate.",
     "unpublished": "Unpublished",
-    "views": "{count} views"
+    "views": "{count} views",
+    "starsLabel": "Rate {n} out of 5"
   },
   "quality": {
     "native": "Native",

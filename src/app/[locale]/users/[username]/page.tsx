@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { getUserByUsername, listDashboards, parseSort } from "@/db/queries";
 import { DashboardTable } from "@/components/DashboardTable";
@@ -7,6 +8,14 @@ import { Pagination } from "@/components/Pagination";
 
 type Search = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string; username: string }> }): Promise<Metadata> {
+  const { locale, username } = await params;
+  const user = await getUserByUsername(username);
+  if (!user) return { robots: { index: false } };
+  const t = await getTranslations({ locale, namespace: "user" });
+  return { title: t("dashboards", { name: user.name ?? user.username ?? username }), robots: { index: false, follow: true } };
+}
 
 export default async function UserPage({
   params, searchParams,

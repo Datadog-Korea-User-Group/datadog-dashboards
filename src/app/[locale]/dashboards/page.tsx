@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { absolute, languageAlternates } from "@/lib/site-url";
 import { listDashboards, listIntegrations, parseQuality, parseSort } from "@/db/queries";
 import { DashboardTable } from "@/components/DashboardTable";
 import { FilterBar } from "@/components/FilterBar";
@@ -6,6 +8,27 @@ import { Pagination } from "@/components/Pagination";
 
 type Search = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "list" });
+  const ts = await getTranslations({ locale, namespace: "site" });
+  // Canonical drops q/filters/page: every variation is the same collection.
+  return {
+    title: t("title"),
+    description: ts("tagline"),
+    alternates: { canonical: absolute(locale, "/dashboards"), languages: languageAlternates("/dashboards") },
+    openGraph: {
+      type: "website",
+      url: absolute(locale, "/dashboards"),
+      title: t("title"),
+      description: ts("tagline"),
+      siteName: ts("name"),
+      images: [{ url: absolute(locale, "/opengraph-image"), width: 1200, height: 630, alt: ts("name") }],
+    },
+    twitter: { card: "summary_large_image" },
+  };
+}
 
 export default async function DashboardsPage({
   params, searchParams,

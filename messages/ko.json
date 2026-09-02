@@ -74,7 +74,8 @@
     "created": "{date} 등록",
     "signInToRate": "평가하려면 로그인이 필요합니다.",
     "unpublished": "비공개",
-    "views": "조회 {count}회"
+    "views": "조회 {count}회",
+    "starsLabel": "5점 만점에 {n}점"
   },
   "quality": {
     "native": "기본 통합",

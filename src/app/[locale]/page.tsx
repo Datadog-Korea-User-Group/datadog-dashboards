@@ -1,7 +1,20 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { absolute, languageAlternates } from "@/lib/site-url";
 import { Link } from "@/i18n/navigation";
 import { getHomeData, getSketchWidgets } from "@/db/queries";
 import { DashboardCard } from "@/components/DashboardCard";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "site" });
+  const image = { url: `${absolute(locale, "/opengraph-image")}`, width: 1200, height: 630, alt: t("name") };
+  return {
+    alternates: { canonical: absolute(locale), languages: languageAlternates() },
+    openGraph: { type: "website", url: absolute(locale), title: t("name"), description: t("tagline"), siteName: t("name"), images: [image] },
+    twitter: { card: "summary_large_image" },
+  };
+}
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   await params;

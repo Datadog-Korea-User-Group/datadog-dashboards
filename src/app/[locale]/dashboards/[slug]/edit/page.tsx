@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { auth } from "@/auth";
 import { getDashboardBySlug, getRevisionJson } from "@/db/queries";
 import { RevisionForm } from "./RevisionForm";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function EditDashboardPage({
   params,

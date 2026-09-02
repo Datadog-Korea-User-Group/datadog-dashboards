@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { auth, signIn } from "@/auth";
 import { UploadForm } from "./UploadForm";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function UploadPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
