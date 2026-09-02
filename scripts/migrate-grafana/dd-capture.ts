@@ -40,7 +40,9 @@ export async function captureOne(browser: Browser, sourceId: number, ddId: strin
 /** Shares the dashboard publicly, screenshots it at 1920x1080 into `out` (webp), then removes the share. */
 export async function captureToFile(browser: Browser, ddId: string, minutes: number, out: string): Promise<void> {
   const liveSpan = minutes <= 5 ? "5m" : minutes <= 10 ? "10m" : minutes <= 15 ? "15m" : minutes <= 30 ? "30m" : "1h";
+  const t0 = Date.now();
   const s = await share(ddId, liveSpan);
+  const tShare = Date.now();
   try {
     const to = Date.now(), from = to - minutes * 60_000;
     const url = `${s.public_url}${s.public_url.includes("?") ? "&" : "?"}from_ts=${from}&to_ts=${to}`;
@@ -51,10 +53,12 @@ export async function captureToFile(browser: Browser, ddId: string, minutes: num
     try {
       // Live dashboards keep polling, so "networkidle" is best effort with a short cap; the settle wait covers rendering.
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      const tLoad = Date.now();
       await page.waitForLoadState("networkidle", { timeout: 25_000 }).catch(() => undefined);
       await page.waitForTimeout(5_000);
       const png = await page.screenshot({ type: "png", fullPage: false });
       await sharp(png).resize(1920, 1080, { fit: "cover", position: "top" }).webp({ quality: 75 }).toFile(out);
+      process.stderr.write(`${new Date().toISOString()} capture timing ${ddId}: share ${tShare - t0}ms, load ${tLoad - tShare}ms, settle+shot ${Date.now() - tLoad}ms\n`);
     } finally {
       await ctx.close();
     }
