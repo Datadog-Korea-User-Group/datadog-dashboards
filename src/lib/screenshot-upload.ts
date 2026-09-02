@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -7,7 +8,9 @@ const ALLOWED_FORMATS = new Set(["png", "jpeg", "webp"]);
 
 /** Same directory and naming the preview worker uses, so manual and auto shots interchange. */
 export const UPLOAD_DIR = path.join(process.cwd(), "public", "screenshots", "uploads");
-const fileName = (dashboardId: number, revision: number) => `u-${dashboardId}-${revision}.webp`;
+const prefix = (dashboardId: number, revision: number) => `u-${dashboardId}-${revision}-`;
+const fileName = (dashboardId: number, revision: number, hash: string) =>
+  `${prefix(dashboardId, revision)}${hash}.webp`;
 
 export type PreparedScreenshot = { ok: true; webp: Buffer | null } | { ok: false };
 
@@ -41,10 +44,29 @@ export async function prepareScreenshot(
   }
 }
 
-/** Writes the prepared image and returns the screenshot_url to store. */
+/**
+ * Writes the prepared image and returns the screenshot_url to store.
+ *
+ * The content hash is in the name, not a ?v= query: the image optimizer rejects a
+ * query string, and a new name is what actually busts the immutable cache header.
+ * Older shots for the same revision are removed once the new one is on disk.
+ */
 export async function writeScreenshot(webp: Buffer, dashboardId: number, revision: number): Promise<string> {
+  const hash = createHash("sha256").update(webp).digest("hex").slice(0, 8);
+  const name = fileName(dashboardId, revision, hash);
+
   await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(path.join(UPLOAD_DIR, fileName(dashboardId, revision)), webp);
-  // The query string busts the immutable cache header when a file is replaced.
-  return `/screenshots/uploads/${fileName(dashboardId, revision)}?v=${Date.now()}`;
+  await writeFile(path.join(UPLOAD_DIR, name), webp);
+
+  // Best effort: a leftover file costs disk, never correctness.
+  try {
+    const stale = (await readdir(UPLOAD_DIR)).filter(
+      (f) => f.startsWith(prefix(dashboardId, revision)) && f.endsWith(".webp") && f !== name,
+    );
+    await Promise.all(stale.map((f) => unlink(path.join(UPLOAD_DIR, f)).catch(() => {})));
+  } catch {
+    /* directory unreadable: the new file is written, which is what matters */
+  }
+
+  return `/screenshots/uploads/${name}`;
 }
