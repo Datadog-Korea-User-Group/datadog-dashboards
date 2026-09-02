@@ -49,6 +49,17 @@ describe("validateResult", () => {
 describe("normalizeQueryFilters", () => {
   it("joins IN clauses with AND", () => {
     expect(normalizeQueryFilters("sum:m{a IN (x,y),b:c} by {d}")).toBe("sum:m{a IN (x,y) AND b:c} by {d}");
+    // exclusions must be spelled NOT key:value once the list is AND-joined
+    expect(normalizeQueryFilters("sum:m{a:*,!b:*,c NOT IN (x,y)}")).toBe("sum:m{a:* AND NOT b:* AND c NOT IN (x,y)}");
+    expect(normalizeQueryFilters("sum:m{a:b AND !c:d}")).toBe("sum:m{a:b AND NOT c:d}");
+    expect(normalizeQueryFilters("sum:m{!c:d,a:b}")).toBe("sum:m{!c:d,a:b}");
+    // wildcards are not allowed inside IN (...): spell them as an OR group; the +Inf bucket is the histogram count
+    expect(normalizeQueryFilters("sum:m.count{code IN (4*,5*),verb:get} by {code}")).toBe("sum:m.count{(code:4* OR code:5*) AND verb:get} by {code}");
+    expect(normalizeQueryFilters("sum:m{k NOT IN (a*,b),z:1}")).toBe("sum:m{NOT k:a* AND NOT k:b AND z:1}");
+    expect(normalizeQueryFilters("sum:m.bucket{$instance,le:+Inf}.as_rate()")).toBe("sum:m.count{$instance}.as_rate()");
+    // tag values are lowercased and restricted to the intake charset
+    expect(normalizeQueryFilters("avg:jvm{id:\"compressed class space\",name:33-PCI 1 Zone}")).toBe("avg:jvm{id:compressed_class_space,name:33-pci_1_zone}");
+    for (const q of ["sum:m{(code:4* OR code:5*) AND verb:get} by {code}", "sum:m{a:* AND NOT b:* AND c NOT IN (x,y)}", "sum:m{NOT k:a* AND z:1}"]) expect(validateQuery(q)).toBeNull();
     expect(normalizeQueryFilters("sum:m{a:b,c:d}")).toBe("sum:m{a:b,c:d}");
   });
 });

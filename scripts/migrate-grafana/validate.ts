@@ -2,7 +2,7 @@ import type { TranslationResult } from "./types";
 
 // Datadog metric query: agg:metric{filters} by {tags}.modifier(...)...
 const QUERY_RE = /^(avg|sum|min|max|p(?:50|75|90|95|99|999))\s*:\s*([a-zA-Z][a-zA-Z0-9_.]{0,199})\s*\{([^{}]*)\}(?:\s+by\s+\{([^{}]*)\})?((?:\s*\.(?:as_rate\(\)|as_count\(\)|rollup\(\s*(?:avg|sum|min|max|count)\s*(?:,\s*\d+\s*)?\)|fill\(\s*(?:null|zero|linear|last)\s*(?:,\s*\d+\s*)?\)))*)\s*$/;
-const FILTER_RE = /^(?:\*|!?\$[A-Za-z_][A-Za-z0-9_]*|!?[A-Za-z_][A-Za-z0-9_.\/-]*\s*:\s*[^,]+|(?:NOT\s+)?[A-Za-z_][A-Za-z0-9_.\/-]*\s+(?:NOT\s+)?IN\s*\([^()]*\))$/i;
+const FILTER_RE = /^(?:\*|!?\$[A-Za-z_][A-Za-z0-9_]*|(?:!|NOT\s+)?[A-Za-z_][A-Za-z0-9_.\/-]*\s*:\s*[^,]+|(?:NOT\s+)?[A-Za-z_][A-Za-z0-9_.\/-]*\s+(?:NOT\s+)?IN\s*\([^()]*\)|\([A-Za-z_][A-Za-z0-9_.\/-]*:[^\s()]+(?:\s+OR\s+[A-Za-z_][A-Za-z0-9_.\/-]*:[^\s()]+)*\))$/i;
 const TAG_RE = /^[A-Za-z_][A-Za-z0-9_.\/-]*$/;
 const ALLOWED_FN = new Set([
   "abs", "log2", "log10", "cumsum", "integral", "derivative", "diff", "timeshift", "default_zero", "count_not_null", "count_nonzero",
@@ -13,17 +13,42 @@ const ALLOWED_FN = new Set([
 
 export interface ValidationIssue { id: string; message: string }
 
-/** Datadog rejects `IN (...)` clauses mixed with comma separators: join such filter lists with AND instead. */
+const TAG_VALUE_BAD = /[^a-z0-9_:.\/*-]/g;
+/** Datadog tag values: lowercase, quotes stripped, anything outside [a-z0-9_:./*-] becomes `_` (matches the intake). */
+function sanitizeTagValue(v: string): string {
+  const t = v.trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+  return t.includes("$") ? t : t.toLowerCase().replace(TAG_VALUE_BAD, "_");
+}
+
+/**
+ * Makes the filter list of a metric query acceptable to Datadog:
+ * `m.bucket{le:+Inf}` -> `m.count{}`; `key IN (a*,b)` -> `(key:a* OR key:b)`; `NOT key IN` -> `key NOT IN`; tag values
+ * sanitized; and, whenever an `IN`/`OR`/`AND` clause is present, the list is joined with AND (`!key` becomes `NOT key`)
+ * because Datadog rejects those operators mixed with commas.
+ */
 export function normalizeQueryFilters(q: string): string {
+  // the +Inf bucket of a histogram is its total count
+  q = q.replace(/\.bucket\{([^{}]*)\}/, (whole, inner: string) => {
+    if (!/(^|,|\bAND\s+)\s*le:"?\+?inf"?\s*(,|$|\s+AND\b)/i.test(inner)) return whole;
+    const rest = splitTopLevel(inner.replace(/\s+AND\s+/g, ",")).map((s) => s.trim()).filter((s) => s && !/^le:/i.test(s));
+    return `.count{${rest.join(",") || "*"}}`;
+  });
   return q.replace(/\{([^{}]*)\}/, (whole, inner: string) => {
-    if (!/\bIN\s*\(/i.test(inner)) return whole;
     // Datadog spells negated membership `key NOT IN (...)`, not `NOT key IN (...)`
     let fixed = inner.replace(/\bNOT\s+([A-Za-z_][A-Za-z0-9_.\/-]*)\s+IN\s*\(/gi, "$1 NOT IN (");
-    // Tag values only allow [A-Za-z0-9_:./-]; Datadog's intake turns anything else into '_' (e.g. <none> -> _none_)
-    fixed = fixed.replace(/IN\s*\(([^()]*)\)/gi, (_, list: string) => `IN (${list.split(",").map((v) => v.trim().toLowerCase().replace(/[^a-z0-9_:.\/*-]/g, "_")).join(",")})`);
-    if (!fixed.includes(",")) return `{${fixed}}`;
-    const parts = (/\bAND\b/.test(fixed) ? fixed.split(/\s+AND\s+/) : splitTopLevel(fixed)).map((s) => s.trim()).filter(Boolean);
-    return `{${parts.join(" AND ")}}`;
+    // IN lists: sanitized values; wildcards are not allowed inside IN, so spell those as an OR group
+    fixed = fixed.replace(/([A-Za-z_][A-Za-z0-9_.\/-]*)\s+(NOT\s+)?IN\s*\(([^()]*)\)/gi, (_, key: string, not: string | undefined, list: string) => {
+      const vals = list.split(",").map(sanitizeTagValue).filter(Boolean);
+      if (!vals.some((v) => v.includes("*"))) return `${key} ${not ? "NOT " : ""}IN (${vals.join(",")})`;
+      return not ? vals.map((v) => `NOT ${key}:${v}`).join(" AND ") : `(${vals.map((v) => `${key}:${v}`).join(" OR ")})`;
+    });
+    const andForm = /\bAND\b|\bOR\b|\bIN\s*\(/i.test(fixed);
+    const parts = fixed.split(/\s+AND\s+/).flatMap((s) => splitTopLevel(s)).map((s) => s.trim()).filter(Boolean)
+      .map((p) => p.replace(/^(!|NOT\s+)?([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/s, (_, neg: string | undefined, key: string, val: string) =>
+        `${neg ?? ""}${key}:${sanitizeTagValue(val)}`));
+    if (!andForm) return `{${parts.join(",")}}`;
+    // in the AND form an exclusion is spelled `NOT key:value`; `!key:value` is only valid in comma lists
+    return `{${parts.map((p) => (p.startsWith("!") ? `NOT ${p.slice(1)}` : p)).join(" AND ")}}`;
   });
 }
 

@@ -52,6 +52,12 @@ export function seriesForDashboard(d: DdDashboard): SeriesSpec[] {
         if (v) { keys.add(varPrefix.get(v[1]) ?? v[1]); continue; }
         const inm = /^([A-Za-z_][A-Za-z0-9_.\/-]*)\s+IN\s*\(([^)]*)\)$/i.exec(f);
         if (inm) { fixed.set(inm[1], inm[2].split(",").map((s) => safeTag(s)).filter(Boolean).slice(0, 3)); keys.add(inm[1]); continue; }
+        const orm = /^\((.+)\)$/.exec(f); // (key:a* OR key:b): emit one of the alternatives
+        if (orm) {
+          const kvs = orm[1].split(/\s+OR\s+/i).map((p) => /^([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/.exec(p.trim())).filter((x): x is RegExpExecArray => !!x);
+          if (kvs.length) { keys.add(kvs[0][1]); fixed.set(kvs[0][1], kvs.map((k) => { const v = safeTag(k[2]); return v.endsWith("*") ? v.slice(0, -1) + "00" : v; }).slice(0, 3)); }
+          continue;
+        }
         const kv = /^([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/.exec(f);
         if (kv) {
           const key = kv[1]; let val = safeTag(kv[2]);
