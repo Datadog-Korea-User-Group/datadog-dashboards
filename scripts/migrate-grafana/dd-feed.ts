@@ -94,7 +94,9 @@ export function seriesForDashboard(d: DdDashboard): SeriesSpec[] {
 /** Base magnitude by metric name so values look plausible for the unit the dashboard expects. */
 function baseFor(metric: string, seed: number): { base: number; clampMax?: number } {
   const m = metric.toLowerCase();
-  if (/percent|pct|util|\.idle|\.user$|\.system$|iowait|stolen|usage_pct|in_use|ratio/.test(m)) return { base: 15 + seed * 60, clampMax: 100 };
+  if (/\.idle/.test(m)) return { base: 55 + seed * 35, clampMax: 100 };
+  if (/in_use|ratio|fraction/.test(m) && !/percent|pct/.test(m)) return { base: 0.15 + seed * 0.6, clampMax: 1 };
+  if (/percent|pct|util|\.user$|\.system$|iowait|stolen|usage_pct/.test(m)) return { base: 5 + seed * 45, clampMax: 100 };
   if (/bytes|memory|mem\.|rss|working_set|heap|size|\.b$/.test(m)) return { base: 2e8 + seed * 3e9 };
   if (/seconds|duration|latency|time|rtt|delay|age/.test(m)) return { base: 0.05 + seed * 0.9 };
   if (/connections|sessions|clients|threads|goroutines|fds|handles|sockets/.test(m)) return { base: 40 + seed * 900 };
@@ -106,10 +108,41 @@ function baseFor(metric: string, seed: number): { base: number; clampMax?: numbe
   return { base: 5 + seed * 200 };
 }
 
+const ROLE_TOTAL = /total|capacity|limit|max|allocatable|size/;
+const ROLE_FREE = /free|avail|usable|unused|cached|buffer|reserved/;
+/**
+ * Resource metrics (memory, swap, disk, inodes, cores) get a fixed capacity per series identity, with "free"/"used"
+ * variants as fractions of it, so totals, ratios and "used %" formulas come out sane instead of 1e21 B or -1.8k %.
+ */
+export function capacityFor(spec: Pick<SeriesSpec, "metric" | "tags">): { cap: number; role: "total" | "free" | "used"; integer: boolean } | null {
+  const m = spec.metric.toLowerCase();
+  if (/percent|pct|util|ratio|in_use|fraction|uptime|seconds|_time/.test(m)) return null;
+  const kind = /cores|cpu\.num|num_cpu|cpu_capacity|capacity_cpu|allocatable_cpu/.test(m) ? "cores" : /inode/.test(m) ? "inodes"
+    : /^system\.(mem|swap)\./.test(m) ? "mib" : /disk|fs\.|filesystem|storage|volume|_fs_|persistentvolume/.test(m) ? "disk"
+    : /mem|memory|swap|heap|rss|working_set/.test(m) ? "memory" : null;
+  if (!kind) return null;
+  const role = ROLE_TOTAL.test(m) ? "total" : ROLE_FREE.test(m) ? "free" : "used";
+  const root = m.replace(/total|capacity|limit|max|allocatable|size|free|avail(able)?|usable|unused|cached|buffers?|reserved|used|usage|rss|working_set|requests?/g, "");
+  const h = hash(`${root}|${spec.tags.join(",")}`);
+  const cap = kind === "cores" ? 4 * (1 + Math.round(h * 7)) : kind === "inodes" ? 4e6 * (1 + Math.round(h * 3)) : kind === "mib" ? 8192 * (1 + Math.round(h * 3))
+    : kind === "disk" ? 100e9 * (0.5 + h * 4) : 8e9 * (0.5 + h * 3);
+  return { cap, role, integer: kind === "cores" || kind === "inodes" };
+}
+
 /** Smooth, varied synthetic signal: two sine components + noise + rare spikes, distinct per series via its seed. */
 export function valueAt(spec: SeriesSpec, tick: number): number {
-  const { base, clampMax } = baseFor(spec.metric, spec.seed);
+  const m = spec.metric.toLowerCase();
   const p1 = 40 + spec.seed * 80, p2 = 7 + spec.seed * 20;
+  if (/uptime/.test(m)) return 86400 * (1 + spec.seed * 60) + tick * 10; // seconds, growing with the feed
+  if (/start_time/.test(m)) return Date.now() / 1000 - 86400 * (1 + spec.seed * 60); // unix timestamp
+  const capf = capacityFor(spec);
+  if (capf) {
+    if (capf.role === "total") return capf.cap;
+    const frac = (capf.role === "free" ? 0.25 : 0.3) + 0.4 * spec.seed;
+    const v = capf.cap * frac * (1 + 0.04 * Math.sin(tick / p1 + spec.seed * 6.28) + (Math.random() - 0.5) * 0.01);
+    return capf.integer ? Math.round(v) : v;
+  }
+  const { base, clampMax } = baseFor(spec.metric, spec.seed);
   let v = base * (1 + 0.28 * Math.sin(tick / p1 + spec.seed * 6.28) + 0.12 * Math.sin(tick / p2 + spec.seed * 3) + (Math.random() - 0.5) * 0.08);
   if (Math.random() < 0.02) v *= 1.6 + spec.seed;
   if (spec.type === "c") v = Math.max(0, Math.round(v / 10)); // counter increments per flush
