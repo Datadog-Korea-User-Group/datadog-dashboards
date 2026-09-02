@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const MAX_BYTES = 5 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const ALLOWED_FORMATS = new Set(["png", "jpeg", "webp"]);
 
 /** Same directory and naming the preview worker uses, so manual and auto shots interchange. */
@@ -17,9 +17,12 @@ export type PreparedScreenshot = { ok: true; webp: Buffer | null } | { ok: false
  *
  * `webp: null` means no file was supplied, which is not an error.
  */
-export async function prepareScreenshot(file: File | null | undefined): Promise<PreparedScreenshot> {
+export async function prepareScreenshot(
+  file: File | null | undefined,
+  maxBytes = MAX_UPLOAD_BYTES,
+): Promise<PreparedScreenshot> {
   if (!file || file.size === 0) return { ok: true, webp: null };
-  if (file.size > MAX_BYTES) return { ok: false };
+  if (file.size > maxBytes) return { ok: false };
 
   try {
     const input = Buffer.from(await file.arrayBuffer());
