@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { DASHBOARDS_TAG, countRecentUploads } from "@/db/queries";
-import { dashboardRevisions, dashboards, previewJobs } from "@/db/schema";
+import { dashboardRevisions, dashboards } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 import { prepareScreenshot, writeScreenshot } from "@/lib/screenshot-upload";
 import { uniqueSlug } from "@/lib/slug";
@@ -49,7 +49,9 @@ export async function createDashboard(_prev: UploadState, formData: FormData): P
         tags: parseTags(String(formData.get("tags") ?? "")),
         authorId: session.user.id,
         source: "user",
-        isPublished: true,
+        // Held until an admin approves; the preview job is enqueued on approval.
+        reviewStatus: "pending",
+        isPublished: false,
       })
       .returning({ id: dashboards.id });
 
@@ -58,16 +60,15 @@ export async function createDashboard(_prev: UploadState, formData: FormData): P
       revision: 1,
       dashboardJson: parsed.json,
       createdBy: session.user.id,
+      reviewStatus: "pending",
     });
 
+    // A manual shot is kept so the reviewer sees something; the worker runs on approval.
     if (shot.webp) {
       await tx
         .update(dashboards)
         .set({ screenshotUrl: await writeScreenshot(shot.webp, row.id, 1), screenshotSource: "manual" })
         .where(eq(dashboards.id, row.id));
-    } else {
-      // No manual shot: let the worker render one.
-      await tx.insert(previewJobs).values({ dashboardId: row.id, revision: 1 });
     }
   });
 

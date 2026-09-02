@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { DASHBOARDS_TAG } from "@/db/queries";
-import { dashboardRevisions, dashboards, previewJobs } from "@/db/schema";
+import { dashboardRevisions, dashboards } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 import { prepareScreenshot, writeScreenshot } from "@/lib/screenshot-upload";
 import { validateDashboardJson } from "@/lib/validate-dashboard";
@@ -19,7 +19,7 @@ export async function createRevision(_prev: RevisionState, formData: FormData): 
 
   const slug = String(formData.get("slug") ?? "");
   const [target] = await db
-    .select({ id: dashboards.id, authorId: dashboards.authorId })
+    .select({ id: dashboards.id, authorId: dashboards.authorId, reviewStatus: dashboards.reviewStatus })
     .from(dashboards)
     .where(eq(dashboards.slug, slug))
     .limit(1);
@@ -45,19 +45,20 @@ export async function createRevision(_prev: RevisionState, formData: FormData): 
     dashboardJson: parsed.json,
     changelog: String(formData.get("changelog") ?? "").slice(0, 500),
     createdBy: session.user.id,
+    reviewStatus: "pending",
   });
   await db
     .update(dashboards)
     .set({
       updatedAt: new Date(),
+      // Resubmitting a rejected dashboard puts it back in the queue.
+      ...(target.reviewStatus === "rejected" ? { reviewStatus: "pending", reviewNote: null } : {}),
       ...(shot.webp
         ? { screenshotUrl: await writeScreenshot(shot.webp, target.id, next), screenshotSource: "manual" as const }
         : {}),
     })
     .where(eq(dashboards.id, target.id));
 
-  // No manual shot: let the worker render one for this revision.
-  if (!shot.webp) await db.insert(previewJobs).values({ dashboardId: target.id, revision: next });
 
   revalidatePath("/", "layout");
   updateTag(DASHBOARDS_TAG);

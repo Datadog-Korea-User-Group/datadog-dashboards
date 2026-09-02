@@ -53,8 +53,23 @@ export type ListParams = {
   authorId?: string;
 };
 
+/** The public visibility rule, in one place: published AND through review. */
+export const publicDashboard = () =>
+  and(eq(dashboards.isPublished, true), eq(dashboards.reviewStatus, "approved"))!;
+
+/** Latest revision that passed review, or null. */
+export async function getLatestApprovedRevision(dashboardId: number) {
+  const [row] = await db
+    .select({ revision: dashboardRevisions.revision, dashboardJson: dashboardRevisions.dashboardJson })
+    .from(dashboardRevisions)
+    .where(and(eq(dashboardRevisions.dashboardId, dashboardId), eq(dashboardRevisions.reviewStatus, "approved"))!)
+    .orderBy(desc(dashboardRevisions.revision))
+    .limit(1);
+  return row ?? null;
+}
+
 function listWhere({ q, tag, integration, quality, authorId }: ListParams): SQL {
-  const conds: SQL[] = [eq(dashboards.isPublished, true)];
+  const conds: SQL[] = [publicDashboard()];
   if (q?.trim()) conds.push(sql`${dashboards.search} @@ plainto_tsquery('simple', ${q.trim()})`);
   if (tag) conds.push(arrayContains(dashboards.tags, [tag]));
   if (integration) conds.push(arrayContains(dashboards.integrations, [integration]));
@@ -140,7 +155,8 @@ export async function getSketchWidgets(dashboardIds: number[]): Promise<Map<numb
 export type DashboardDetail = {
   dashboard: typeof dashboards.$inferSelect;
   author: { id: string; name: string | null; username: string | null; image: string | null } | null;
-  latest: { revision: number; jsonBytes: number; changelog: string; createdAt: Date } | null;
+  latest: { revision: number; jsonBytes: number; changelog: string; createdAt: Date; reviewStatus: string } | null;
+  pendingRevision: number | null;
 };
 
 export async function getDashboardBySlug(slug: string): Promise<DashboardDetail | null> {
@@ -155,6 +171,7 @@ export async function getDashboardBySlug(slug: string): Promise<DashboardDetail 
     .limit(1);
   if (!row) return null;
 
+  // The public view is the newest approved revision; a newer pending one is flagged separately.
   const [latest] = await db
     .select({
       revision: dashboardRevisions.revision,
@@ -162,13 +179,26 @@ export async function getDashboardBySlug(slug: string): Promise<DashboardDetail 
       jsonBytes: sql<number>`octet_length(${dashboardRevisions.dashboardJson}::text)`,
       changelog: dashboardRevisions.changelog,
       createdAt: dashboardRevisions.createdAt,
+      reviewStatus: dashboardRevisions.reviewStatus,
     })
     .from(dashboardRevisions)
-    .where(eq(dashboardRevisions.dashboardId, row.dashboard.id))
+    .where(and(eq(dashboardRevisions.dashboardId, row.dashboard.id), eq(dashboardRevisions.reviewStatus, "approved"))!)
     .orderBy(desc(dashboardRevisions.revision))
     .limit(1);
 
-  return { dashboard: row.dashboard, author: row.author?.id ? row.author : null, latest: latest ?? null };
+  const [pending] = await db
+    .select({ revision: dashboardRevisions.revision })
+    .from(dashboardRevisions)
+    .where(and(eq(dashboardRevisions.dashboardId, row.dashboard.id), eq(dashboardRevisions.reviewStatus, "pending"))!)
+    .orderBy(desc(dashboardRevisions.revision))
+    .limit(1);
+
+  return {
+    dashboard: row.dashboard,
+    author: row.author?.id ? row.author : null,
+    latest: latest ?? null,
+    pendingRevision: pending?.revision ?? null,
+  };
 }
 
 export async function listRevisions(dashboardId: number) {
@@ -292,7 +322,7 @@ export async function listIntegrations(limit = 60): Promise<IntegrationCount[]> 
   const res = await db.execute(sql`
     select i as name, count(*)::int as count
     from dashboards d, unnest(d.integrations) i
-    where d.is_published
+    where d.is_published and d.review_status = 'approved'
     group by i
     order by count(*) desc, i asc
     limit ${limit}
@@ -302,7 +332,7 @@ export async function listIntegrations(limit = 60): Promise<IntegrationCount[]> 
 
 async function queryHomeData() {
   const [[totals], popular, recent, integrations] = await Promise.all([
-    db.select({ n: count() }).from(dashboards).where(eq(dashboards.isPublished, true)),
+    db.select({ n: count() }).from(dashboards).where(publicDashboard()),
     listDashboards({ sort: "downloads" }),
     listDashboards({ sort: "newest" }),
     listIntegrations(12),
@@ -327,6 +357,133 @@ export async function listSitemapDashboards() {
   return db
     .select({ slug: dashboards.slug, updatedAt: dashboards.updatedAt })
     .from(dashboards)
-    .where(eq(dashboards.isPublished, true))
+    .where(publicDashboard())
+    .orderBy(desc(dashboards.updatedAt));
+}
+
+// ---------- Moderation ----------
+
+/** Dashboards awaiting a first review, oldest first. */
+export async function listPendingDashboards() {
+  return db
+    .select({
+      id: dashboards.id,
+      slug: dashboards.slug,
+      title: dashboards.title,
+      description: dashboards.description,
+      tags: dashboards.tags,
+      screenshotUrl: dashboards.screenshotUrl,
+      createdAt: dashboards.createdAt,
+      authorUsername: users.username,
+      authorImage: users.image,
+      jsonBytes: sql<number>`(select octet_length(r.dashboard_json::text) from dashboard_revisions r
+        where r.dashboard_id = ${dashboards.id} order by r.revision desc limit 1)`,
+    })
+    .from(dashboards)
+    .leftJoin(users, eq(dashboards.authorId, users.id))
+    .where(eq(dashboards.reviewStatus, "pending"))
+    .orderBy(asc(dashboards.createdAt));
+}
+
+/** Revisions awaiting review on an already-approved dashboard, oldest first. */
+export async function listPendingRevisions() {
+  return db
+    .select({
+      dashboardId: dashboardRevisions.dashboardId,
+      revision: dashboardRevisions.revision,
+      changelog: dashboardRevisions.changelog,
+      createdAt: dashboardRevisions.createdAt,
+      slug: dashboards.slug,
+      title: dashboards.title,
+      screenshotUrl: dashboards.screenshotUrl,
+      authorUsername: users.username,
+      jsonBytes: sql<number>`octet_length(${dashboardRevisions.dashboardJson}::text)`,
+    })
+    .from(dashboardRevisions)
+    .innerJoin(dashboards, eq(dashboardRevisions.dashboardId, dashboards.id))
+    .leftJoin(users, eq(dashboardRevisions.createdBy, users.id))
+    .where(and(eq(dashboardRevisions.reviewStatus, "pending"), eq(dashboards.reviewStatus, "approved"))!)
+    .orderBy(asc(dashboardRevisions.createdAt));
+}
+
+export async function countPendingReviews(): Promise<number> {
+  const [row] = await db.execute<{ n: number }>(sql`
+    select (select count(*) from dashboards where review_status = 'pending')
+         + (select count(*) from dashboard_revisions r join dashboards d on d.id = r.dashboard_id
+            where r.review_status = 'pending' and d.review_status = 'approved') as n
+  `).then((r) => r.rows);
+  return Number(row?.n ?? 0);
+}
+
+export async function getAdminOverview() {
+  const [row] = await db.execute<{ pending_dashboards: number; pending_revisions: number; recent_comments: number }>(sql`
+    select
+      (select count(*) from dashboards where review_status = 'pending') as pending_dashboards,
+      (select count(*) from dashboard_revisions r join dashboards d on d.id = r.dashboard_id
+       where r.review_status = 'pending' and d.review_status = 'approved') as pending_revisions,
+      (select count(*) from comments where deleted_at is null and created_at > now() - interval '7 days') as recent_comments
+  `).then((r) => r.rows);
+  return {
+    pendingDashboards: Number(row?.pending_dashboards ?? 0),
+    pendingRevisions: Number(row?.pending_revisions ?? 0),
+    recentComments: Number(row?.recent_comments ?? 0),
+  };
+}
+
+/** Latest comments across every dashboard, for the moderation queue. */
+export async function listRecentComments(limit = 100) {
+  return db
+    .select({
+      id: comments.id,
+      body: comments.body,
+      createdAt: comments.createdAt,
+      slug: dashboards.slug,
+      title: dashboards.title,
+      username: users.username,
+    })
+    .from(comments)
+    .innerJoin(dashboards, eq(comments.dashboardId, dashboards.id))
+    .leftJoin(users, eq(comments.userId, users.id))
+    .where(isNull(comments.deletedAt))
+    .orderBy(desc(comments.createdAt))
+    .limit(limit);
+}
+
+/** Every dashboard for the admin table, regardless of review state. */
+export async function listAllDashboards(params: { q?: string; status?: string } = {}) {
+  const conds: SQL[] = [];
+  if (params.q?.trim()) conds.push(sql`${dashboards.search} @@ plainto_tsquery('simple', ${params.q.trim()})`);
+  if (params.status) conds.push(eq(dashboards.reviewStatus, params.status));
+  return db
+    .select({
+      id: dashboards.id,
+      slug: dashboards.slug,
+      title: dashboards.title,
+      reviewStatus: dashboards.reviewStatus,
+      isPublished: dashboards.isPublished,
+      screenshotSource: dashboards.screenshotSource,
+      updatedAt: dashboards.updatedAt,
+      authorUsername: users.username,
+    })
+    .from(dashboards)
+    .leftJoin(users, eq(dashboards.authorId, users.id))
+    .where(conds.length ? and(...conds)! : sql`true`)
+    .orderBy(desc(dashboards.updatedAt))
+    .limit(200);
+}
+
+/** Dashboards owned by one user, any review state, for their own profile. */
+export async function listOwnDashboards(userId: string) {
+  return db
+    .select({
+      id: dashboards.id,
+      slug: dashboards.slug,
+      title: dashboards.title,
+      reviewStatus: dashboards.reviewStatus,
+      reviewNote: dashboards.reviewNote,
+      updatedAt: dashboards.updatedAt,
+    })
+    .from(dashboards)
+    .where(and(eq(dashboards.authorId, userId), sql`${dashboards.reviewStatus} <> 'approved'`)!)
     .orderBy(desc(dashboards.updatedAt));
 }

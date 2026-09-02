@@ -143,5 +143,41 @@
   "reactions": {
     "title": "Reactions",
     "signIn": "Sign in to react"
+  },
+  "admin": {
+    "title": "Admin",
+    "overview": "Overview",
+    "reviews": "Reviews",
+    "comments": "Comments",
+    "dashboards": "Dashboards",
+    "status": "Status",
+    "dashboard": "Dashboard",
+    "author": "Author",
+    "body": "Comment",
+    "date": "Date",
+    "pendingDashboards": "Dashboards waiting for review",
+    "pendingRevisions": "Revisions waiting for review",
+    "recentComments": "Comments in the last 7 days",
+    "status_pending": "Pending",
+    "status_approved": "Approved",
+    "status_rejected": "Rejected"
+  },
+  "review": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "note": "Reason",
+    "notePlaceholder": "Tell the uploader what to fix",
+    "queueEmpty": "Nothing waiting for review.",
+    "newDashboards": "New dashboards",
+    "newRevisions": "New revisions",
+    "revisionN": "Revision {n}",
+    "pendingBanner": "Waiting for review. It becomes public once an admin approves it.",
+    "rejectedBanner": "This upload was rejected. Publish a new revision to submit it again.",
+    "revisionPending": "Revision {n} is waiting for review.",
+    "yourSubmissions": "Your submissions",
+    "status_pending": "Pending",
+    "status_approved": "Published",
+    "status_rejected": "Rejected",
+    "status_unpublished": "Unpublished"
   }
 }

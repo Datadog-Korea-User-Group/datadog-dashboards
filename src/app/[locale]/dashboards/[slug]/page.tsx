@@ -138,14 +138,17 @@ export default async function DashboardDetailPage({
   const [found, session] = await Promise.all([getDashboardBySlug(slug), auth()]);
   if (!found) notFound();
 
-  const { dashboard: d, author, latest } = found;
+  const { dashboard: d, author, latest, pendingRevision } = found;
   const isAdmin = session?.user?.role === "admin";
   const isOwner = !!session?.user?.id && session.user.id === d.authorId;
-  if (!d.isPublished && !isAdmin && !isOwner) notFound();
+  // Public only when published and through review; the owner and admins always see it.
+  const isPublicView = d.isPublished && d.reviewStatus === "approved";
+  if (!isPublicView && !isAdmin && !isOwner) notFound();
 
   const t = await getTranslations("detail");
   const tc = await getTranslations("comments");
   const tr = await getTranslations("reactions");
+  const trv = await getTranslations("review");
   const [revisions, myRating, thread, reactionTally] = await Promise.all([
     listRevisions(d.id),
     session?.user?.id ? getUserRating(d.id, session.user.id) : Promise.resolve(null),
@@ -186,6 +189,19 @@ export default async function DashboardDetailPage({
     <div className="flex flex-col gap-5">
       <ViewPing slug={d.slug} />
       <JsonLd data={jsonLd} />
+
+      {(isOwner || isAdmin) && d.reviewStatus !== "approved" ? (
+        <section className={`card p-4 text-sm ${d.reviewStatus === "rejected" ? "border-danger" : ""}`}>
+          <p className="font-semibold">{d.reviewStatus === "rejected" ? trv("rejectedBanner") : trv("pendingBanner")}</p>
+          {d.reviewNote ? <p className="muted mt-1">{trv("note")}: {d.reviewNote}</p> : null}
+        </section>
+      ) : null}
+
+      {(isOwner || isAdmin) && pendingRevision ? (
+        <section className="card p-4 text-sm">
+          <p className="font-semibold">{trv("revisionPending", { n: pendingRevision })}</p>
+        </section>
+      ) : null}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{d.title}</h1>

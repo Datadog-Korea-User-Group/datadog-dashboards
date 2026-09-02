@@ -80,6 +80,11 @@ export const dashboards = pgTable("dashboards", {
   views: integer("views").notNull().default(0),
   ratingAvg: numeric("rating_avg", { precision: 3, scale: 2 }),
   ratingCount: integer("rating_count").notNull().default(0),
+  // 'pending' | 'approved' | 'rejected'. Existing rows are approved so the seed stays public.
+  reviewStatus: text("review_status").notNull().default("approved"),
+  reviewNote: text("review_note"),
+  reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   isPublished: boolean("is_published").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -109,6 +114,11 @@ export const dashboardRevisions = pgTable("dashboard_revisions", {
   changelog: text("changelog").notNull().default(""),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // 'pending' | 'approved' | 'rejected'. Existing rows are approved so the seed stays public.
+  reviewStatus: text("review_status").notNull().default("approved"),
+  reviewNote: text("review_note"),
+  reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("dashboard_revisions_unique").on(t.dashboardId, t.revision)]);
 
 export const ratings = pgTable("ratings", {
