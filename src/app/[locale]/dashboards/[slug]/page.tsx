@@ -385,7 +385,7 @@ export default async function DashboardDetailPage({
                       </form>
                     ) : null}
                   </div>
-                  <Markdown>{c.body}</Markdown>
+                  <Markdown images={false}>{c.body}</Markdown>
                 </div>
               </li>
             ))}

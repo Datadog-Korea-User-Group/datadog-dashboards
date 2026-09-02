@@ -4,8 +4,8 @@ import { revalidatePath, updateTag } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { DASHBOARDS_TAG } from "@/db/queries";
-import { dashboardRevisions, dashboards, previewJobs } from "@/db/schema";
+import { DASHBOARDS_TAG, enqueuePreview } from "@/db/queries";
+import { dashboardRevisions, dashboards } from "@/db/schema";
 
 async function requireAdmin() {
   const session = await auth();
@@ -47,7 +47,7 @@ export async function approveDashboard(formData: FormData) {
     .where(and(eq(dashboardRevisions.dashboardId, id), eq(dashboardRevisions.revision, revision))!);
 
   // The author's own screenshot wins; otherwise the worker renders one now that it is public.
-  if (row.screenshotSource !== "manual") await db.insert(previewJobs).values({ dashboardId: id, revision });
+  if (row.screenshotSource !== "manual") await enqueuePreview(id, revision);
   done();
 }
 
@@ -83,7 +83,7 @@ export async function approveRevision(formData: FormData) {
     .where(and(eq(dashboardRevisions.dashboardId, id), eq(dashboardRevisions.revision, revision))!);
   await db.update(dashboards).set({ updatedAt: new Date() }).where(eq(dashboards.id, id));
 
-  if (row.screenshotSource !== "manual") await db.insert(previewJobs).values({ dashboardId: id, revision });
+  if (row.screenshotSource !== "manual") await enqueuePreview(id, revision);
   done();
 }
 

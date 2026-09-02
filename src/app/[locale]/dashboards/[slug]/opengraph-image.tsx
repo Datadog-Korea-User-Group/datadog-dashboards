@@ -20,9 +20,17 @@ const headers = { "Cache-Control": "public, max-age=86400, s-maxage=86400" };
 const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** Satori cannot decode webp, so sharp re-encodes the screenshot as a JPEG data URL. */
+const SHOT_ROOT = path.join(process.cwd(), "public", "screenshots");
+
 async function screenshotDataUrl(screenshotUrl: string): Promise<string | null> {
   try {
-    const file = await readFile(path.join(process.cwd(), "public", screenshotUrl));
+    // The column is data, so treat it as untrusted: resolve, then require the result to
+    // stay under public/screenshots and to name a .webp file.
+    const target = path.resolve(process.cwd(), "public", `.${new URL(screenshotUrl, "http://x").pathname}`);
+    if (!target.startsWith(SHOT_ROOT + path.sep)) return null;
+    if (!/^[\w.-]+\.webp$/.test(path.basename(target))) return null;
+
+    const file = await readFile(target);
     const jpeg = await sharp(file)
       .resize(size.width, SHOT_HEIGHT, { fit: "cover", position: "top" })
       .jpeg({ quality: 80 })

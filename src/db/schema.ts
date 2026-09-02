@@ -165,7 +165,11 @@ export const previewJobs = pgTable("preview_jobs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   startedAt: timestamp("started_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
-}, (t) => [index("preview_jobs_status_created_idx").on(t.status, t.createdAt)]);
+}, (t) => [
+  index("preview_jobs_status_created_idx").on(t.status, t.createdAt),
+  // At most one live job per revision: the enqueue paths rely on this instead of a check.
+  uniqueIndex("preview_jobs_live_unique").on(t.dashboardId, t.revision).where(sql`status in ('queued','running')`),
+]);
 
 // ---------- Relations ----------
 export const usersRelations = relations(users, ({ many }) => ({ dashboards: many(dashboards) }));

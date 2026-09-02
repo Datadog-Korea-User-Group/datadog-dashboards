@@ -137,7 +137,8 @@
     "errors": {
       "length": "A comment must be 1 to 4000 characters.",
       "rateLimit": "Too many comments in the last hour.",
-      "signIn": "Sign in to comment."
+      "signIn": "Sign in to comment.",
+      "unavailable": "This dashboard is not available."
     }
   },
   "reactions": {

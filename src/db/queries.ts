@@ -361,6 +361,11 @@ export async function listSitemapDashboards() {
     .orderBy(desc(dashboards.updatedAt));
 }
 
+/** Enqueue a preview render. The partial unique index makes a repeat a no-op. */
+export async function enqueuePreview(dashboardId: number, revision: number) {
+  await db.insert(previewJobs).values({ dashboardId, revision }).onConflictDoNothing();
+}
+
 // ---------- Moderation ----------
 
 /** Dashboards awaiting a first review, oldest first. */

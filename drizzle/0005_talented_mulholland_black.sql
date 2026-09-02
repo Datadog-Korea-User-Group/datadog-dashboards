@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "preview_jobs_live_unique" ON "preview_jobs" USING btree ("dashboard_id","revision") WHERE status in ('queued','running');

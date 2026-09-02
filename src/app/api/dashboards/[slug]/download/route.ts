@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
+import { clientIp, firstInWindow } from "@/lib/recent-actions";
 import { db } from "@/db";
 import { getLatestApprovedRevision, getRevisionJson } from "@/db/queries";
 import { dashboards } from "@/db/schema";
@@ -43,7 +44,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   // Awaited so a refresh right after the click sees the new number.
   // Still caught: a counter failure must never block the download.
   // `inline=1` is the JSON viewer and Copy button reading the same bytes; not a download.
-  if (query.get("inline") !== "1") {
+  if (query.get("inline") !== "1" && firstInWindow(`download:${clientIp(request)}:${slug}`, 600_000)) {
     await db
       .update(dashboards)
       .set({ downloads: sql`${dashboards.downloads} + 1` })
