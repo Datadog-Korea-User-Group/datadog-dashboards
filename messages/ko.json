@@ -14,6 +14,9 @@
     "language": "언어"
   },
   "home": {
+    "headline": "바로 가져다 쓰는 Datadog 대시보드",
+    "statDashboards": "대시보드",
+    "statIntegrations": "통합",
     "browseAll": "모든 대시보드 보기",
     "popular": "인기 대시보드",
     "recent": "최근 등록",
@@ -75,7 +78,10 @@
     "signInToRate": "평가하려면 로그인이 필요합니다.",
     "unpublished": "비공개",
     "views": "조회 {count}회",
-    "starsLabel": "5점 만점에 {n}점"
+    "starsLabel": "5점 만점에 {n}점",
+    "previewPending": "미리보기 생성 중…",
+    "previewFailed": "미리보기 생성에 실패했습니다",
+    "regeneratePreview": "미리보기 다시 생성"
   },
   "quality": {
     "native": "기본 통합",
@@ -106,8 +112,11 @@
       "notDashboard": "widgets 배열과 layout_type이 포함된 Datadog 대시보드 JSON이어야 합니다.",
       "tooLarge": "JSON 크기가 2MB를 넘습니다.",
       "rateLimit": "한 시간에 올릴 수 있는 횟수를 넘었습니다. 잠시 후 다시 시도해 주세요.",
-      "title": "제목은 3자 이상 120자 이하로 입력해 주세요."
-    }
+      "title": "제목은 3자 이상 120자 이하로 입력해 주세요.",
+      "screenshot": "스크린샷은 5MB 이하의 PNG, JPG, WebP 파일이어야 합니다."
+    },
+    "screenshot": "스크린샷 (선택)",
+    "screenshotHelp": "5MB 이하의 PNG, JPG, WebP. 올리지 않으면 미리보기가 자동 생성됩니다."
   },
   "user": {
     "dashboards": "{name} 님의 대시보드",

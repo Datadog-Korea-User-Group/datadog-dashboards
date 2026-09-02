@@ -72,6 +72,10 @@ export const dashboards = pgTable("dashboards", {
   qualityScore: integer("quality_score"),
   conversionSummary: jsonb("conversion_summary").$type<ConversionSummary>(),
   screenshotUrl: text("screenshot_url"),
+  // 'grafana' | 'auto' | 'manual'. Nullable with no default: the seed sets it explicitly.
+  screenshotSource: text("screenshot_source"),
+  // Datadog dashboard the preview worker reuses across revisions.
+  ddDashboardId: text("dd_dashboard_id"),
   downloads: integer("downloads").notNull().default(0),
   views: integer("views").notNull().default(0),
   ratingAvg: numeric("rating_avg", { precision: 3, scale: 2 }),
@@ -140,6 +144,19 @@ export const reactions = pgTable("reactions", {
   index("reactions_dashboard_idx").on(t.dashboardId),
 ]);
 
+/** Work queue for the preview worker. Raw SQL reads this, so the column names are the contract. */
+export const previewJobs = pgTable("preview_jobs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  dashboardId: integer("dashboard_id").notNull().references(() => dashboards.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  status: text("status").notNull().default("queued"), // queued | running | done | failed
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => [index("preview_jobs_status_created_idx").on(t.status, t.createdAt)]);
+
 // ---------- Relations ----------
 export const usersRelations = relations(users, ({ many }) => ({ dashboards: many(dashboards) }));
 export const dashboardsRelations = relations(dashboards, ({ one, many }) => ({
@@ -157,3 +174,4 @@ export type Dashboard = typeof dashboards.$inferSelect;
 export type DashboardRevision = typeof dashboardRevisions.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
+export type PreviewJob = typeof previewJobs.$inferSelect;

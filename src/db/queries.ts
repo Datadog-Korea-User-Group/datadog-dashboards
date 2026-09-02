@@ -2,7 +2,7 @@ import { and, arrayContains, asc, count, desc, eq, gte, isNull, lt, sql, type SQ
 import { unstable_cache } from "next/cache";
 import { PAGE_SIZE, type QualityBand, type Sort } from "@/lib/list-params";
 import { db } from "./index";
-import { comments, dashboardRevisions, dashboards, ratings, reactions, users, REACTION_EMOJIS, type ConversionSummary } from "./schema";
+import { comments, dashboardRevisions, dashboards, previewJobs, ratings, reactions, users, REACTION_EMOJIS, type ConversionSummary } from "./schema";
 
 // Re-exported so server callers keep importing from one place; the definitions
 // live in lib/list-params so client components can use them too.
@@ -273,6 +273,17 @@ export async function listReactions(dashboardId: number, userId?: string): Promi
     count: found.get(emoji)?.count ?? 0,
     mine: found.get(emoji)?.mine ?? false,
   }));
+}
+
+/** Most recent preview job for one revision, or null. */
+export async function getPreviewJob(dashboardId: number, revision: number) {
+  const [row] = await db
+    .select({ status: previewJobs.status, error: previewJobs.error })
+    .from(previewJobs)
+    .where(and(eq(previewJobs.dashboardId, dashboardId), eq(previewJobs.revision, revision))!)
+    .orderBy(desc(previewJobs.id))
+    .limit(1);
+  return row ?? null;
 }
 
 export type IntegrationCount = { name: string; count: number };

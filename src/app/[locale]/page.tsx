@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { Flame, Layers, Sparkles } from "lucide-react";
 import { absolute, languageAlternates } from "@/lib/site-url";
 import { Link } from "@/i18n/navigation";
 import { getHomeData, getSketchWidgets } from "@/db/queries";
 import { DashboardCard } from "@/components/DashboardCard";
+import { HeroArt } from "@/components/HeroArt";
+import { CountUp } from "@/components/CountUp";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -19,6 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   await params;
   const t = await getTranslations("site");
+  const tn = await getTranslations("nav");
   const th = await getTranslations("home");
 
   const { total, popular, recent, integrations } = await getHomeData();
@@ -28,32 +32,67 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   const grid = (items: typeof popular) => (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item) => (
-        <DashboardCard key={item.id} item={item} sketch={sketches.get(item.id)} />
+      {items.map((item, i) => (
+        <DashboardCard key={item.id} item={item} sketch={sketches.get(item.id)} index={i} />
       ))}
     </div>
   );
 
+  const heading = (icon: React.ReactNode, label: string) => (
+    <h2 className="flex items-center gap-2 font-bold mb-3">
+      {icon}
+      {label}
+    </h2>
+  );
+
   return (
-    <div className="flex flex-col gap-8">
-      <section className="card p-8">
-        <h1 className="text-2xl font-bold">{t("name")}</h1>
-        <p className="muted mt-1 text-base">{t("tagline")}</p>
-        <p className="mt-3 text-xs text-text-tertiary">
-          {th("stats", { count: total.toLocaleString() })} · {th("integrationCount", { count: integrations.length })}
-        </p>
-        <Link href="/dashboards" className="btn btn-primary mt-4">{th("browseAll")}</Link>
+    <div className="flex flex-col gap-10">
+      <section className="card overflow-hidden">
+        <div className="grid items-center gap-8 p-8 sm:p-10 lg:grid-cols-[1.05fr_minmax(0,0.95fr)]">
+          <div className="reveal">
+            <p className="eyebrow">{t("org")}</p>
+            <h1 className="text-gradient mt-3 text-[32px] leading-[1.12] font-bold tracking-tight break-keep sm:text-[42px]">
+              {th("headline")}
+            </h1>
+            <p className="muted mt-4 max-w-[46ch] text-base leading-relaxed break-keep">{t("tagline")}</p>
+
+            <div className="mt-7 flex flex-wrap gap-2">
+              <Link href="/dashboards" className="btn btn-primary">{th("browseAll")}</Link>
+              <Link href="/upload" className="btn btn-secondary">{tn("upload")}</Link>
+            </div>
+
+            <dl className="mt-8 flex gap-10">
+              <div>
+                <dd className="text-gradient text-[28px] leading-none font-bold">
+                  <CountUp value={total} />
+                </dd>
+                <dt className="mt-1.5 text-xs text-text-tertiary">{th("statDashboards")}</dt>
+              </div>
+              <div>
+                <dd className="text-gradient text-[28px] leading-none font-bold">
+                  <CountUp value={integrations.length} />
+                </dd>
+                <dt className="mt-1.5 text-xs text-text-tertiary">{th("statIntegrations")}</dt>
+              </div>
+            </dl>
+          </div>
+
+          <div className="reveal justify-self-center lg:justify-self-end" style={{ "--i": 2 } as React.CSSProperties}>
+            <HeroArt className="h-auto w-full max-w-[520px]" />
+          </div>
+        </div>
       </section>
 
       {integrations.length > 0 ? (
         <section>
-          <h2 className="font-bold mb-2">{th("byIntegration")}</h2>
+          {heading(<Layers size={16} className="text-primary" aria-hidden="true" />, th("byIntegration"))}
           <div className="flex flex-wrap gap-2">
-            {integrations.map((i) => (
+            {integrations.map((i, idx) => (
               <Link
                 key={i.name}
                 href={`/dashboards?integration=${encodeURIComponent(i.name)}`}
-                className="pill pill-brand hover:opacity-80"
+                className="pill pill-brand reveal hover:opacity-80"
+                style={{ "--i": idx } as React.CSSProperties}
               >
                 {i.name} · {i.count}
               </Link>
@@ -64,14 +103,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
       {popular.length > 0 ? (
         <section>
-          <h2 className="font-bold mb-3">{th("popular")}</h2>
+          {heading(<Flame size={16} className="text-callout" aria-hidden="true" />, th("popular"))}
           {grid(popular)}
         </section>
       ) : null}
 
       {recent.length > 0 ? (
         <section>
-          <h2 className="font-bold mb-3">{th("recent")}</h2>
+          {heading(<Sparkles size={16} className="text-brand" aria-hidden="true" />, th("recent"))}
           {grid(recent)}
         </section>
       ) : null}

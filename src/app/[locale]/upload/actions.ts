@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
+import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { DASHBOARDS_TAG, countRecentUploads } from "@/db/queries";
-import { dashboardRevisions, dashboards } from "@/db/schema";
+import { dashboardRevisions, dashboards, previewJobs } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
+import { prepareScreenshot, writeScreenshot } from "@/lib/screenshot-upload";
 import { uniqueSlug } from "@/lib/slug";
 import { validateDashboardJson } from "@/lib/validate-dashboard";
 
@@ -31,6 +33,10 @@ export async function createDashboard(_prev: UploadState, formData: FormData): P
 
   if ((await countRecentUploads(session.user.id)) >= UPLOADS_PER_HOUR) return { error: "rateLimit" };
 
+  // Validated before the insert so a bad image cannot leave a dashboard behind.
+  const shot = await prepareScreenshot(formData.get("screenshot") as File | null);
+  if (!shot.ok) return { error: "screenshot" };
+
   const slug = uniqueSlug(title);
   await db.transaction(async (tx) => {
     const [row] = await tx
@@ -53,6 +59,16 @@ export async function createDashboard(_prev: UploadState, formData: FormData): P
       dashboardJson: parsed.json,
       createdBy: session.user.id,
     });
+
+    if (shot.webp) {
+      await tx
+        .update(dashboards)
+        .set({ screenshotUrl: await writeScreenshot(shot.webp, row.id, 1), screenshotSource: "manual" })
+        .where(eq(dashboards.id, row.id));
+    } else {
+      // No manual shot: let the worker render one.
+      await tx.insert(previewJobs).values({ dashboardId: row.id, revision: 1 });
+    }
   });
 
   revalidatePath("/", "layout");

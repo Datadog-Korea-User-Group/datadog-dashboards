@@ -193,3 +193,80 @@ a { color: inherit; }
   .md-body th { background: var(--ui-background-secondary); font-weight: 700; }
   .md-body img { max-width: 100%; height: auto; }
 }
+
+/* ---------------------------------------------------------------------------
+   Motion & illustration layer. Everything below is CSS-only and every
+   animation is switched off under prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+
+/* Brand gradient for display text. Stops are lightened in dark mode so the
+   headline keeps its contrast against the dark surface. */
+:root {
+  --grad-from: #632ca6;
+  --grad-to: #006bc2;
+}
+.dark {
+  --grad-from: #beaaff;
+  --grad-to: #55a8e8;
+}
+.text-gradient {
+  background-image: linear-gradient(100deg, var(--grad-from) 0%, var(--grad-to) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Floating illustration groups. Three amplitudes, five phases, so the shapes
+   never bob in lockstep. */
+@keyframes hero-float-a { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-11px); } }
+@keyframes hero-float-b { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes hero-float-c { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+.hero-float-1 { animation: hero-float-a 9s ease-in-out 0s infinite; will-change: transform; }
+.hero-float-2 { animation: hero-float-b 7s ease-in-out -2.4s infinite; will-change: transform; }
+.hero-float-3 { animation: hero-float-a 8s ease-in-out -4.1s infinite; will-change: transform; }
+.hero-float-4 { animation: hero-float-c 10s ease-in-out -1.3s infinite; will-change: transform; }
+.hero-float-5 { animation: hero-float-b 6.5s ease-in-out -3.2s infinite; will-change: transform; }
+
+/* Entrance reveal. Stagger with style={{ "--i": index }}. `backwards` keeps the
+   element hidden through its delay; with motion off it simply stays visible. */
+@keyframes reveal-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.reveal { animation: reveal-in .4s ease-out backwards; animation-delay: calc(var(--i, 0) * 40ms); }
+
+/* Card artwork: shimmer placeholder underneath, gentle zoom on hover. */
+@keyframes media-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.card-media {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(100deg,
+    color-mix(in srgb, var(--ui-brand) 5%, transparent) 20%,
+    color-mix(in srgb, var(--ui-brand) 14%, transparent) 40%,
+    color-mix(in srgb, var(--ui-interaction-primary) 10%, transparent) 60%,
+    color-mix(in srgb, var(--ui-brand) 5%, transparent) 80%);
+  background-size: 200% 100%;
+  /* bounded: the artwork covers the shimmer once loaded, so don't repaint forever */
+  animation: media-shimmer 1.6s linear 6;
+}
+.card-media > * { position: relative; transition: transform .35s ease; }
+.card-hover:hover .card-media > * { transform: scale(1.02); }
+
+/* Press feedback on buttons; focus ring is inherited from .btn. */
+.btn:active { transform: scale(.98); }
+
+/* Small caps label above a headline. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ui-brand);
+}
+.dark .eyebrow { color: var(--ui-interaction-text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-float-1, .hero-float-2, .hero-float-3, .hero-float-4, .hero-float-5,
+  .reveal, .card-media { animation: none; }
+  .card-hover:hover .card-media > * { transform: none; }
+}

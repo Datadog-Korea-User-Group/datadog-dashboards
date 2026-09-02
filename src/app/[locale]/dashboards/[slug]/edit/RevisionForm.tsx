@@ -41,6 +41,12 @@ export function RevisionForm({ slug, json }: { slug: string; json: string }) {
         <input type="file" accept="application/json,.json" onChange={loadFile} className="text-xs" />
       </label>
 
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-semibold">{t("screenshot")}</span>
+        <span className="text-xs muted">{t("screenshotHelp")}</span>
+        <input type="file" name="screenshot" accept="image/png,image/jpeg,image/webp" className="text-xs" />
+      </label>
+
       <button type="submit" disabled={pending} className="btn btn-primary self-start">{t("submitRevision")}</button>
     </form>
   );

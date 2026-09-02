@@ -5,7 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { DASHBOARDS_TAG, countRecentComments } from "@/db/queries";
-import { REACTION_EMOJIS, comments, dashboards, ratings, reactions } from "@/db/schema";
+import { REACTION_EMOJIS, comments, dashboards, previewJobs, ratings, reactions } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
 
 async function requireAdmin() {
@@ -109,5 +109,22 @@ export async function toggleReaction(dashboardId: number, emoji: string) {
   if (mine) await db.delete(reactions).where(where);
   else await db.insert(reactions).values({ dashboardId, userId: session.user.id, emoji }).onConflictDoNothing();
 
+  revalidatePath("/", "layout");
+}
+
+export async function regeneratePreview(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const dashboardId = Number(formData.get("dashboardId"));
+  const [target] = await db
+    .select({ authorId: dashboards.authorId })
+    .from(dashboards)
+    .where(eq(dashboards.id, dashboardId))
+    .limit(1);
+  if (!target) return;
+  if (target.authorId !== session.user.id && session.user.role !== "admin") throw new Error("Forbidden");
+
+  await db.insert(previewJobs).values({ dashboardId, revision: Number(formData.get("revision")) });
   revalidatePath("/", "layout");
 }

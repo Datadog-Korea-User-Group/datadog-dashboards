@@ -14,6 +14,9 @@
     "language": "Language"
   },
   "home": {
+    "headline": "Datadog dashboards, ready to import.",
+    "statDashboards": "dashboards",
+    "statIntegrations": "integrations",
     "browseAll": "Browse all dashboards",
     "popular": "Popular",
     "recent": "Recently added",
@@ -75,7 +78,10 @@
     "signInToRate": "Sign in to rate.",
     "unpublished": "Unpublished",
     "views": "{count} views",
-    "starsLabel": "Rate {n} out of 5"
+    "starsLabel": "Rate {n} out of 5",
+    "previewPending": "Preview is being generated…",
+    "previewFailed": "Preview generation failed",
+    "regeneratePreview": "Regenerate preview"
   },
   "quality": {
     "native": "Native",
@@ -106,8 +112,11 @@
       "notDashboard": "JSON must be a Datadog dashboard export with a widgets array and layout_type.",
       "tooLarge": "JSON larger than 2 MB.",
       "rateLimit": "Too many uploads in the last hour.",
-      "title": "Title is required (3–120 characters)."
-    }
+      "title": "Title is required (3–120 characters).",
+      "screenshot": "Screenshot must be a PNG, JPG or WebP under 5 MB."
+    },
+    "screenshot": "Screenshot (optional)",
+    "screenshotHelp": "PNG, JPG or WebP under 5 MB. Without one, a preview is generated for you."
   },
   "user": {
     "dashboards": "Dashboards by {name}",

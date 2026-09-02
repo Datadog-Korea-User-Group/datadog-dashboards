@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { auth, signIn } from "@/auth";
 import { Link } from "@/i18n/navigation";
-import { getDashboardBySlug, getSketchWidgets, getUserRating, listComments, listReactions, listRevisions } from "@/db/queries";
+import { getDashboardBySlug, getPreviewJob, getSketchWidgets, getUserRating, listComments, listReactions, listRevisions } from "@/db/queries";
 import type { ConversionSummary } from "@/db/schema";
 import { CopyButton } from "@/components/CopyButton";
 import { DownloadButton } from "@/components/DownloadButton";
@@ -19,7 +19,7 @@ import { ViewPing } from "@/components/ViewPing";
 import { Markdown } from "@/lib/markdown";
 import { absolute, languageAlternates } from "@/lib/site-url";
 import { CommentForm } from "./CommentForm";
-import { deleteComment, deleteDashboard, rateDashboard, setPublished, toggleReaction } from "./actions";
+import { deleteComment, deleteDashboard, rateDashboard, regeneratePreview, setPublished, toggleReaction } from "./actions";
 
 function metaDescription(d: { description: string; title: string; sourceId: number | null; sourceOrgName: string | null }) {
   if (d.description) return d.description;
@@ -152,6 +152,8 @@ export default async function DashboardDetailPage({
     listComments(d.id),
     listReactions(d.id, session?.user?.id),
   ]);
+  const previewJob = latest ? await getPreviewJob(d.id, latest.revision) : null;
+  const canRegenerate = (isOwner || isAdmin) && d.screenshotSource !== "manual";
 
   // The JSON is fetched by the viewer on demand, so it never reaches the HTML.
   // Without a screenshot the sketch still needs layouts, trimmed to layout fields in SQL.
@@ -193,6 +195,9 @@ export default async function DashboardDetailPage({
             <span className="pill pill-neutral">{t("downloads", { count: d.downloads.toLocaleString() })}</span>
             <span className="pill pill-neutral">{t("views", { count: d.views.toLocaleString() })}</span>
             <span className="pill pill-neutral">{tc("count", { count: thread.length })}</span>
+            {!d.screenshotUrl && (previewJob?.status === "queued" || previewJob?.status === "running") ? (
+              <span className="pill pill-warning">{t("previewPending")}</span>
+            ) : null}
             {latest ? <span className="pill pill-neutral">{t("revision", { n: latest.revision })}</span> : null}
             <span className="muted">{t.rich("created", { d: () => <LocalTime value={d.createdAt} mode="date" /> })}</span>
             {author?.username ? (
@@ -248,6 +253,15 @@ export default async function DashboardDetailPage({
           <LayoutSketch widgets={sketch} />
         )}
       </div>
+
+      {canRegenerate ? (
+        <form action={regeneratePreview} className="flex items-center gap-3 -mt-2">
+          <input type="hidden" name="dashboardId" value={d.id} />
+          <input type="hidden" name="revision" value={latest?.revision ?? 1} />
+          {previewJob?.status === "failed" ? <span className="text-xs muted">{t("previewFailed")}</span> : null}
+          <button type="submit" className="btn btn-secondary btn-sm">{t("regeneratePreview")}</button>
+        </form>
+      ) : null}
 
       {d.readme ? <section className="card p-5"><Markdown>{d.readme}</Markdown></section> : null}
 

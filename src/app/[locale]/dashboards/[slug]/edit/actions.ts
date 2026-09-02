@@ -5,8 +5,9 @@ import { eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { DASHBOARDS_TAG } from "@/db/queries";
-import { dashboardRevisions, dashboards } from "@/db/schema";
+import { dashboardRevisions, dashboards, previewJobs } from "@/db/schema";
 import { redirectLocalized } from "@/lib/redirect-localized";
+import { prepareScreenshot, writeScreenshot } from "@/lib/screenshot-upload";
 import { validateDashboardJson } from "@/lib/validate-dashboard";
 
 /** `error` is a key under `upload.errors` in messages/*.json. */
@@ -28,6 +29,9 @@ export async function createRevision(_prev: RevisionState, formData: FormData): 
   const parsed = validateDashboardJson(String(formData.get("json") ?? ""));
   if (!parsed.ok) return { error: parsed.error };
 
+  const shot = await prepareScreenshot(formData.get("screenshot") as File | null);
+  if (!shot.ok) return { error: "screenshot" };
+
   // ponytail: next revision read-then-insert. The unique(dashboard_id, revision) index
   // turns a concurrent double-submit into an error rather than a lost revision.
   const [{ next }] = await db
@@ -42,7 +46,18 @@ export async function createRevision(_prev: RevisionState, formData: FormData): 
     changelog: String(formData.get("changelog") ?? "").slice(0, 500),
     createdBy: session.user.id,
   });
-  await db.update(dashboards).set({ updatedAt: new Date() }).where(eq(dashboards.id, target.id));
+  await db
+    .update(dashboards)
+    .set({
+      updatedAt: new Date(),
+      ...(shot.webp
+        ? { screenshotUrl: await writeScreenshot(shot.webp, target.id, next), screenshotSource: "manual" as const }
+        : {}),
+    })
+    .where(eq(dashboards.id, target.id));
+
+  // No manual shot: let the worker render one for this revision.
+  if (!shot.webp) await db.insert(previewJobs).values({ dashboardId: target.id, revision: next });
 
   revalidatePath("/", "layout");
   updateTag(DASHBOARDS_TAG);

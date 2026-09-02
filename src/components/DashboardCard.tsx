@@ -5,10 +5,14 @@ import type { DashboardListItem } from "@/db/queries";
 import { LayoutSketch } from "./LayoutSketch";
 import { QualityBadge } from "./QualityBadge";
 
-export function DashboardCard({ item, sketch }: { item: DashboardListItem; sketch?: unknown }) {
+export function DashboardCard({ item, sketch, index = 0 }: { item: DashboardListItem; sketch?: unknown; index?: number }) {
   return (
-    <Link href={`/dashboards/${item.slug}`} className="card card-hover overflow-hidden flex flex-col hover:border-primary transition-colors">
-      <div className="border-b border-border bg-bg-secondary">
+    <Link
+      href={`/dashboards/${item.slug}`}
+      className="card card-hover reveal overflow-hidden flex flex-col hover:border-primary transition-colors"
+      style={{ "--i": index } as React.CSSProperties}
+    >
+      <div className="card-media border-b border-border">
         {item.screenshotUrl ? (
           <Image
             src={item.screenshotUrl}
