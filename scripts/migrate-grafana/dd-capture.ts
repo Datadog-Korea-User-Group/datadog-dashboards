@@ -16,7 +16,7 @@ export async function listShares(): Promise<Share[]> {
 }
 
 export async function share(dashboardId: string): Promise<Share> {
-  return dd<Share>("POST", "/v1/dashboard/public", { dashboard_id: dashboardId, share_type: "open" });
+  return dd<Share>("POST", "/v1/dashboard/public", { dashboard_id: dashboardId, dashboard_type: "custom_timeboard", share_type: "open" });
 }
 
 export async function unshare(token: string): Promise<void> {

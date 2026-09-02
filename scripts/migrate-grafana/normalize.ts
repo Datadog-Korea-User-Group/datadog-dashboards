@@ -1,4 +1,4 @@
-import type { GrafanaDashboard, GrafanaPanel, GrafanaRow, GridPos, Group, NormPanel, NormType, NormalizedDashboard, ThresholdStep, TopLevel } from "./types";
+import type { GrafanaDashboard, GrafanaPanel, GrafanaRow, Group, NormPanel, NormType, NormalizedDashboard, ThresholdStep, TopLevel } from "./types";
 
 const TYPE_ALIAS: Record<string, NormType> = {
   timeseries: "timeseries", graph: "timeseries", "graph-old": "timeseries",

@@ -84,7 +84,7 @@ export interface TranslateStats { calls: number; retries: number; validationFail
 export interface TranslateOptions { model: ModelKey; cacheDir?: string; chunkSize?: number; refresh?: boolean; systemPrompt?: string; log?: (s: string) => void }
 
 async function withBackoff<T>(fn: () => Promise<T>, log: (s: string) => void): Promise<T> {
-  let wait = 60_000;
+  const wait = 60_000;
   for (let attempt = 1; ; attempt++) {
     try { return await fn(); } catch (e) {
       const ce = e instanceof ClaudeError ? e : new ClaudeError(String(e));
