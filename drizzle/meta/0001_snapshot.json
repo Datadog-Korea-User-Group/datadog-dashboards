@@ -1,5 +1,5 @@
 {
-  "id": "b7076e8b-be44-46b4-901a-8ebdce27a810",
+  "id": "a9d5347c-6438-45cf-9425-09169e4cf5ef",
   "prevId": "a56727eb-86b1-4ddb-9a82-0f02141a6718",
   "version": "7",
   "dialect": "postgresql",
@@ -473,6 +473,21 @@
           "columns": [
             {
               "expression": "downloads",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "dashboards_views_idx": {
+          "name": "dashboards_views_idx",
+          "columns": [
+            {
+              "expression": "views",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

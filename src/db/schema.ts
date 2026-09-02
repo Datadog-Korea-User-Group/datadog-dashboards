@@ -89,6 +89,7 @@ export const dashboards = pgTable("dashboards", {
   index("dashboards_tags_idx").using("gin", t.tags),
   index("dashboards_integrations_idx").using("gin", t.integrations),
   index("dashboards_downloads_idx").on(t.downloads),
+  index("dashboards_views_idx").on(t.views),
   index("dashboards_source_downloads_idx").on(t.sourceDownloads),
   index("dashboards_created_idx").on(t.createdAt),
   index("dashboards_author_idx").on(t.authorId),
