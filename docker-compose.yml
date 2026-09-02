@@ -31,6 +31,8 @@ services:
       AUTH_URL: ${AUTH_URL}
       AUTH_TRUST_HOST: "true"
       SITE_URL: ${SITE_URL}
+      # Comma-separated GitHub logins that get the admin role (keep it in .env, never in the repo)
+      ADMIN_GITHUB_LOGINS: ${ADMIN_GITHUB_LOGINS:-}
       # Comments/reactions via GitHub Discussions (giscus). IDs are public identifiers.
       GISCUS_REPO: ${GISCUS_REPO:-Datadog-Korea-User-Group/datadog-dashboards}
       GISCUS_REPO_ID: ${GISCUS_REPO_ID:-R_kgDOULXkRA}
