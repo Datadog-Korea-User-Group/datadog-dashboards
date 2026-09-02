@@ -38,6 +38,11 @@ export default async function LocaleLayout({ children, params }: { children: Rea
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen flex flex-col">
+        <div className="liquid-bg" aria-hidden="true">
+          <div className="blob blob-1" />
+          <div className="blob blob-2" />
+          <div className="blob blob-3" />
+        </div>
         <NextIntlClientProvider>
           <Header />
           <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6">{children}</main>

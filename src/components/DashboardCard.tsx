@@ -7,7 +7,7 @@ import { QualityBadge } from "./QualityBadge";
 
 export function DashboardCard({ item, sketch }: { item: DashboardListItem; sketch?: unknown }) {
   return (
-    <Link href={`/dashboards/${item.slug}`} className="card overflow-hidden flex flex-col hover:border-primary transition-colors">
+    <Link href={`/dashboards/${item.slug}`} className="card card-hover overflow-hidden flex flex-col hover:border-primary transition-colors">
       <div className="border-b border-border bg-bg-secondary">
         {item.screenshotUrl ? (
           <Image

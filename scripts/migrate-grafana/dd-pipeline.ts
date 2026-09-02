@@ -33,7 +33,13 @@ async function main() {
       .map((c) => c.id)
       .filter((id) => existsSync(`.cache/datadog/${id}.json`) && !existsSync(`${SHOT_DIR}/${id}.webp`) && (pipe.done[id]?.attempts ?? 0) < 2)
       .slice(0, batch);
-    if (!ids.length) { log("nothing left to process"); break; }
+    if (!ids.length) {
+      if (!argv.includes("--follow")) { log("nothing left to process"); break; }
+      log("nothing converted yet to process; waiting 10 min (--follow)");
+      await sleep(10 * 60_000);
+      w--;
+      continue;
+    }
     const wave: PipeState["waves"][number] = { n: pipe.waves.length + 1, ids, startedAt: new Date().toISOString(), created: 0, captured: 0, failed: 0 };
     pipe.waves.push(wave); savePipe(pipe);
     log(`wave ${wave.n}: ${ids.length} dashboards`);

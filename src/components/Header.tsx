@@ -8,7 +8,7 @@ import { AuthMenu } from "./AuthMenu";
 export async function Header() {
   const t = await getTranslations();
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-bg">
+    <header className="sticky top-0 z-20 glass-bar">
       <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-4">
         <Link href="/" className="flex items-baseline gap-2 shrink-0">
           <span className="font-bold text-lg tracking-tight text-brand">{t("site.name")}</span>
