@@ -11,8 +11,13 @@ export const SHOT_DIR = "public/screenshots";
 type Share = { token: string; public_url: string; dashboard_id: string };
 
 export async function listShares(): Promise<Share[]> {
-  const r = await dd<{ shared_dashboards?: Share[] }>("GET", "/v1/dashboard/public");
-  return r.shared_dashboards ?? [];
+  try {
+    const r = await dd<{ shared_dashboards?: Share[] }>("GET", "/v1/dashboard/public");
+    return r.shared_dashboards ?? [];
+  } catch (e) {
+    if (e instanceof DdApiError && e.status === 404) return []; // the endpoint 404s when the org has no public shares
+    throw e;
+  }
 }
 
 export async function share(dashboardId: string, liveSpan = "15m"): Promise<Share> {
