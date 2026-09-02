@@ -5,6 +5,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Uploads carry up to 2 MB of dashboard JSON plus a 5 MB screenshot in one action request
+  experimental: { serverActions: { bodySizeLimit: "8mb" } },
   images: {
     formats: ["image/avif", "image/webp"],
     // Optimized variants are revalidated hourly against the file on disk, so re-captured screenshots refresh without
