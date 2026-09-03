@@ -43,7 +43,6 @@ export function normalizeQueryFilters(q: string): string {
       return not ? vals.map((v) => `NOT ${key}:${v}`).join(" AND ") : `(${vals.map((v) => `${key}:${v}`).join(" OR ")})`;
     });
     const andForm = /\bAND\b|\bOR\b|\bIN\s*\(/i.test(fixed);
-    if (!/\$[A-Za-z_][A-Za-z0-9_]*\$/.test(fixed) && !andForm && !fixed.includes(",")) return `{${fixed}}`;
     const parts = fixed.split(/\s+AND\s+/).flatMap((s) => splitTopLevel(s)).map((s) => s.trim()).filter(Boolean)
       // `instance="$app$node"` style concatenations have no Datadog equivalent: drop the filter rather than emit `$app$node.value`
       .filter((p) => !/\$[A-Za-z_][A-Za-z0-9_]*\$/.test(p))
