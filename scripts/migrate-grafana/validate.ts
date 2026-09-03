@@ -33,6 +33,7 @@ export function normalizeQueryFilters(q: string): string {
     const rest = splitTopLevel(inner.replace(/\s+AND\s+/g, ",")).map((s) => s.trim()).filter((s) => s && !/^le:/i.test(s));
     return `.count{${rest.join(",") || "*"}}`;
   });
+  q = q.replace(/ by \{([^{}]*)\}/, (_, tags: string) => ` by {${tags.split(",").map((t) => t.trim().replace(/^[^A-Za-z]+/, "")).filter(Boolean).join(",")}}`);
   return q.replace(/\{([^{}]*)\}/, (whole, inner: string) => {
     // Datadog spells negated membership `key NOT IN (...)`, not `NOT key IN (...)`
     let fixed = inner.replace(/\bNOT\s+([A-Za-z_][A-Za-z0-9_.\/-]*)\s+IN\s*\(/gi, "$1 NOT IN (");
@@ -46,8 +47,8 @@ export function normalizeQueryFilters(q: string): string {
     const parts = fixed.split(/\s+AND\s+/).flatMap((s) => splitTopLevel(s)).map((s) => s.trim()).filter(Boolean)
       // `instance="$app$node"` / `"$a/$b"` concatenations have no Datadog equivalent: drop the filter
       .filter((p) => (p.match(/\$[A-Za-z_]/g) ?? []).length < 2)
-      // `$var.*` is a stray regex remnant of `$var`
-      .map((p) => p.replace(/^\$([A-Za-z_][A-Za-z0-9_]*)\.\*$/, "$$$1"))
+      // `$var.*`, `$var-*`, `$var.MDT*`: a standalone variable with trailing text is just the variable filter
+      .map((p) => p.replace(/^(!?)\$([A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_])[^,]+$/, "$1$$$2"))
       .map((p) => p.replace(/^(!|NOT\s+)?([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/s, (_, neg: string | undefined, key: string, val: string) => {
         // tag keys start with a letter; only a trailing `*` wildcard is allowed in values
         const k = key.replace(/^[^A-Za-z]+/, ""), v = sanitizeTagValue(val).replace(/\*{2,}/g, "*");

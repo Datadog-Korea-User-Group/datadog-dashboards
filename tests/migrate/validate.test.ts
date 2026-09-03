@@ -67,6 +67,9 @@ describe("normalizeQueryFilters", () => {
     expect(normalizeQueryFilters("sum:m{$instance,$interface.*} by {interface}")).toBe("sum:m{$instance,$interface} by {interface}");
     expect(normalizeQueryFilters("sum:m{_cluster:$cluster.value,_environment:$environment.value}")).toBe("sum:m{cluster:$cluster.value,environment:$environment.value}");
     expect(normalizeQueryFilters("sum:m{path:/api/*}")).toBe("sum:m{path:/api/*}");
+    expect(normalizeQueryFilters("sum:m{$service-*}.as_rate()")).toBe("sum:m{$service}.as_rate()");
+    expect(normalizeQueryFilters("avg:m{$instance,$thread.num.*} by {type}")).toBe("avg:m{$instance,$thread} by {type}");
+    expect(normalizeQueryFilters("avg:m{*} by {_cluster,host}")).toBe("avg:m{*} by {cluster,host}");
     // wildcards are not allowed inside IN (...): spell them as an OR group; the +Inf bucket is the histogram count
     expect(normalizeQueryFilters("sum:m.count{code IN (4*,5*),verb:get} by {code}")).toBe("sum:m.count{(code:4* OR code:5*) AND verb:get} by {code}");
     expect(normalizeQueryFilters("sum:m{k NOT IN (a*,b),z:1}")).toBe("sum:m{NOT k:a* AND NOT k:b AND z:1}");
