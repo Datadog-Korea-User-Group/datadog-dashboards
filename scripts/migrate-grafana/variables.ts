@@ -41,7 +41,7 @@ export function convertVariables(list: GrafanaVariable[]): VariableResult {
       case "custom": {
         const opts = (v.options ?? []).map((o) => strVal(o.value)).filter((s): s is string => !!s && s !== "$__all");
         const def = v.includeAll || allish(cur) ? "*" : cur ?? opts[0] ?? "*";
-        dd = { name, prefix: name, default: def, available_values: opts };
+        dd = { name, prefix: name, default: def, available_values: [...new Set(opts)] };
         break;
       }
       case "constant":

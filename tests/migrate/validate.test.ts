@@ -60,6 +60,13 @@ describe("normalizeQueryFilters", () => {
     expect(normalizeQueryFilters("avg:m{executor:docker+machine} by {state}")).toBe("avg:m{executor:docker_machine} by {state}");
     expect(normalizeQueryFilters("avg:m{$job}")).toBe("avg:m{$job}");
     expect(normalizeQueryFilters("avg:m{*}")).toBe("avg:m{*}");
+    // interior wildcards, concatenated variables with a separator, `$var.*`, and keys that do not start with a letter
+    expect(normalizeQueryFilters("avg:m{$instance,!uri:/**/favicon.ico} by {uri}")).toBe("avg:m{$instance} by {uri}");
+    expect(normalizeQueryFilters("sum:m{!resource:/**}")).toBe("sum:m{!resource:/*}");
+    expect(normalizeQueryFilters("avg:m{$codebase,$folderFilter/$fileFilter.value}")).toBe("avg:m{$codebase}");
+    expect(normalizeQueryFilters("sum:m{$instance,$interface.*} by {interface}")).toBe("sum:m{$instance,$interface} by {interface}");
+    expect(normalizeQueryFilters("sum:m{_cluster:$cluster.value,_environment:$environment.value}")).toBe("sum:m{cluster:$cluster.value,environment:$environment.value}");
+    expect(normalizeQueryFilters("sum:m{path:/api/*}")).toBe("sum:m{path:/api/*}");
     // wildcards are not allowed inside IN (...): spell them as an OR group; the +Inf bucket is the histogram count
     expect(normalizeQueryFilters("sum:m.count{code IN (4*,5*),verb:get} by {code}")).toBe("sum:m.count{(code:4* OR code:5*) AND verb:get} by {code}");
     expect(normalizeQueryFilters("sum:m{k NOT IN (a*,b),z:1}")).toBe("sum:m{NOT k:a* AND NOT k:b AND z:1}");

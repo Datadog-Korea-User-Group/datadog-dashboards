@@ -44,10 +44,15 @@ export function normalizeQueryFilters(q: string): string {
     });
     const andForm = /\bAND\b|\bOR\b|\bIN\s*\(/i.test(fixed);
     const parts = fixed.split(/\s+AND\s+/).flatMap((s) => splitTopLevel(s)).map((s) => s.trim()).filter(Boolean)
-      // `instance="$app$node"` style concatenations have no Datadog equivalent: drop the filter rather than emit `$app$node.value`
-      .filter((p) => !/\$[A-Za-z_][A-Za-z0-9_]*\$/.test(p))
-      .map((p) => p.replace(/^(!|NOT\s+)?([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/s, (_, neg: string | undefined, key: string, val: string) =>
-        `${neg ?? ""}${key}:${sanitizeTagValue(val)}`));
+      // `instance="$app$node"` / `"$a/$b"` concatenations have no Datadog equivalent: drop the filter
+      .filter((p) => (p.match(/\$[A-Za-z_]/g) ?? []).length < 2)
+      // `$var.*` is a stray regex remnant of `$var`
+      .map((p) => p.replace(/^\$([A-Za-z_][A-Za-z0-9_]*)\.\*$/, "$$$1"))
+      .map((p) => p.replace(/^(!|NOT\s+)?([A-Za-z_][A-Za-z0-9_.\/-]*):(.+)$/s, (_, neg: string | undefined, key: string, val: string) => {
+        // tag keys start with a letter; only a trailing `*` wildcard is allowed in values
+        const k = key.replace(/^[^A-Za-z]+/, ""), v = sanitizeTagValue(val).replace(/\*{2,}/g, "*");
+        return !k || /\*./.test(v) ? "" : `${neg ?? ""}${k}:${v}`;
+      })).filter(Boolean);
     if (!parts.length) return "{*}";
     if (!andForm) return `{${parts.join(",")}}`;
     // in the AND form an exclusion is spelled `NOT key:value`; `!key:value` is only valid in comma lists
